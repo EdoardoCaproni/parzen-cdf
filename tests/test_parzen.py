@@ -39,5 +39,5 @@ def test_pdf_integrates_to_one(samples: np.ndarray) -> None:
     if not _implemented(parzen_pdf, grid, samples, 0.5):
         pytest.skip("parzen_pdf not implemented yet")
     f = parzen_pdf(grid, samples, h=0.5)
-    area = np.trapz(f, grid)
+    area = np.trapezoid(f, grid)
     assert abs(area - 1.0) < 1e-2, f"pdf should integrate to ~1, got {area:.4f}"
