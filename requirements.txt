@@ -1,0 +1,12 @@
+# Core scientific stack
+numpy
+scipy
+matplotlib
+
+# Modelling
+torch
+scikit-learn          # Gaussian-mixture data generation and baseline comparisons
+
+# Exploration & testing
+jupyter
+pytest

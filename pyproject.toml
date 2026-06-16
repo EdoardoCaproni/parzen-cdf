@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parzen-cdf"
+version = "0.1.0"
+description = "Neural estimation of CDFs and densities from Parzen-window targets"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Edoardo Caproni", email = "edoardo.caproni@student.unisi.it" }]
+
+# Runtime dependencies are tracked in requirements.txt for transparency during development.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
