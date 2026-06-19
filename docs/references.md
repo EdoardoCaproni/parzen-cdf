@@ -21,10 +21,33 @@
 
 ## Monotonic neural networks (monotonicity direction)
 
-- **Sill, J. (1998).** *Monotonic Networks.* NIPS. — Architectural monotonicity via constrained
-  weights.
+- **Sill, J. (1998).** *Monotonic Networks.* NIPS. — Architectural monotonicity: non-negative
+  weights + monotone activations ⇒ a monotone network (and a universal approximator of monotone
+  functions); non-negativity enforced by reparameterizing weights (Sill used `exp`; we use the
+  smoother `softplus`). **This is the basis of our `monotone=True` `CDFNet`.**
+- **Daniels, H. & Velikova, M. (2010).** Extension of Sill's construction to *partial*
+  monotonicity (monotone in a subset of inputs) — relevant for Step 2.
+- *Smooth Monotonic Networks* (researchgate.net/publication/371290194). — Smoothness of the
+  monotone map matters here because we differentiate the CDF to obtain the pdf.
 - **Wehenkel, A. & Louppe, G. (2019).** *Unconstrained Monotonic Neural Networks (UMNN).* NeurIPS.
-  — Modern approach; relevant if the loss-penalty monotonicity proves insufficient.
+  — Models the *derivative* as a positive network and integrates it; the modern alternative if the
+  soft penalty / Sill construction proves limiting.
+
+## Function approximation: where to place training inputs
+
+- **Collocation points (PINN literature).** Fitting a known deterministic function over a domain is
+  an experimental-design choice; for smooth targets, uniform/equispaced collocation is sufficient.
+  *Provably Accurate Adaptive Sampling for Collocation Points in PINNs* (arXiv:2504.00910) reviews
+  uniform vs. adaptive sampling. **Justifies our uniform-collocation training inputs.**
+
+## Neural density estimation: the integral / normalization term (out of scope, recorded)
+
+- A network that outputs a **pdf** directly does not integrate to 1 automatically; a normalization
+  penalty `λ·(∫f − 1)²` (or `λ|ln ∫f|`) is added, with the integral done by Monte-Carlo in high
+  dimensions to dodge the curse of dimensionality. **Not used here** — our network outputs the
+  *CDF*, so normalization is automatic and the pdf comes from differentiation.
+- *From CDF to PDF: A Density Estimation Method for High-Dimensional Data* (arXiv:1804.05316). —
+  On-topic for Step 2; estimate the CDF and obtain the density from it.
 
 ## Multivariate / copulas (Step 2 direction)
 

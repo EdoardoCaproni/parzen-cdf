@@ -23,8 +23,7 @@ pdf as the derivative of the trained network. We work first in one dimension, th
 3. Training set and MLP as before, re-imposing monotonicity.
 4. Recover the joint pdf via mixed partial derivatives, or the **copula** (Sklar's theorem).
 
-See [CLAUDE.md](CLAUDE.md) for the precise mathematical contract and conventions, and
-[docs/references.md](docs/references.md) for the bibliography.
+See [docs/references.md](docs/references.md) for the bibliography.
 
 ## Setup
 

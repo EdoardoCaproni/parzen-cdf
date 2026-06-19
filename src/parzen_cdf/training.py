@@ -1,19 +1,23 @@
 """Training the CDF regressor and recovering the density.
 
-Loss = data term (regress the Parzen targets) + monotonicity penalty. The monotonicity penalty
-discourages a negative input gradient of the network output, evaluated at points sampled across
-the domain. The density is then the input gradient of the trained network.
+Loss = data term (regress the Parzen CDF targets) + an optional monotonicity penalty. The penalty
+discourages a negative input gradient of the network output, evaluated at collocation points
+spanning the domain. The density is then the input gradient of the trained network.
 
-Both the penalty and the density rely on ``torch.autograd.grad`` with ``create_graph=True`` so the
-gradient is itself differentiable during training.
+Both the penalty and the density rely on ``torch.autograd.grad``; the penalty uses
+``create_graph=True`` so it is itself differentiable during training. Everything here is written
+for the 1-D case (Step 1); the N-D density is a mixed partial derivative (Step 2).
 """
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 
+from . import parzen
 from .models import CDFNet
 
 
@@ -22,27 +26,58 @@ class TrainConfig:
     """Hyperparameters for a training run (record these alongside any reported result)."""
 
     epochs: int = 2000
-    lr: float = 1e-3
-    monotonicity_weight: float = 1.0
+    lr: float = 1e-2
+    monotonicity_weight: float = 0.0  # 0 = unconstrained baseline; > 0 = soft penalty
+    n_penalty_points: int = 256
     seed: int = 0
 
 
+def set_seed(seed: int) -> None:
+    """Seed Python, numpy, and torch RNGs for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def make_training_set(
+    samples: np.ndarray,
+    h: float,
+    n_points: int,
+    rng: np.random.Generator,
+    k_pad: float = 3.0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build ``(inputs, targets)`` from uniform collocation points over a bounded domain.
+
+    Inputs are drawn uniformly from ``[min(samples) - k_pad*h, max(samples) + k_pad*h]`` (even
+    coverage, including the saturating tails); targets are the logistic Parzen CDF at those points.
+    """
+    lo = float(samples.min() - k_pad * h)
+    hi = float(samples.max() + k_pad * h)
+    inputs = rng.uniform(lo, hi, size=n_points)
+    targets = parzen.parzen_cdf(inputs, samples, h)
+    inputs_t = torch.as_tensor(inputs, dtype=torch.float32)
+    targets_t = torch.as_tensor(targets, dtype=torch.float32)
+    return inputs_t, targets_t
+
+
 def monotonicity_penalty(model: CDFNet, x: torch.Tensor) -> torch.Tensor:
-    """Penalty for a negative input gradient ``dF/dx`` at the points ``x``.
+    """Penalty for a negative input gradient ``dF/dx`` at the points ``x``: ``mean(relu(-dF/dx))``.
 
-    For 1-D, penalise ``relu(-dF/dx)``. For N-D, see the *N-increasing* note in ``CLAUDE.md``:
-    per-coordinate monotonicity is necessary but not sufficient for a valid joint CDF.
+    For N-D, recall the *N-increasing* requirement: per-coordinate monotonicity is necessary but
+    not sufficient for a valid joint CDF.
     """
-    raise NotImplementedError
+    x = x.detach().clone().requires_grad_(True)
+    f = model(x)
+    grad = torch.autograd.grad(f.sum(), x, create_graph=True)[0]
+    return torch.relu(-grad).mean()
 
 
-def density_from_cdf(model: CDFNet, x: torch.Tensor) -> torch.Tensor:
-    """Recover the pdf as the (mixed) derivative of the CDF network at ``x``.
-
-    1-D: ``dF/dx``. N-D: the mixed partial ``d^N F / dx_1...dx_N``. Negative values may be clamped
-    to zero as a worst-case fallback.
-    """
-    raise NotImplementedError
+def density_from_cdf(model: CDFNet, x: torch.Tensor, clamp: bool = True) -> torch.Tensor:
+    """Recover the 1-D pdf as ``dF/dx`` via autograd; optionally clamp negatives to 0."""
+    x = x.detach().clone().requires_grad_(True)
+    f = model(x)
+    grad = torch.autograd.grad(f.sum(), x, create_graph=False)[0]
+    return grad.clamp_min(0.0) if clamp else grad
 
 
 def train_cdf(
@@ -50,6 +85,29 @@ def train_cdf(
     inputs: torch.Tensor,
     targets: torch.Tensor,
     config: TrainConfig,
-) -> CDFNet:
-    """Fit ``model`` to ``(inputs, targets)`` Parzen pairs under the monotonicity penalty."""
-    raise NotImplementedError
+    penalty_points: torch.Tensor | None = None,
+) -> tuple[CDFNet, list[float]]:
+    """Fit ``model`` to the ``(inputs, targets)`` Parzen pairs, returning the model and loss history.
+
+    When ``config.monotonicity_weight > 0`` a soft penalty on negative ``dF/dx`` is added, evaluated
+    at ``penalty_points`` (defaults to uniform points over the input range).
+    """
+    set_seed(config.seed)
+    if config.monotonicity_weight > 0 and penalty_points is None:
+        lo, hi = inputs.min().item(), inputs.max().item()
+        penalty_points = torch.linspace(lo, hi, config.n_penalty_points)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
+    mse = torch.nn.MSELoss()
+    history: list[float] = []
+
+    for _ in range(config.epochs):
+        optimizer.zero_grad()
+        loss = mse(model(inputs), targets)
+        if config.monotonicity_weight > 0:
+            loss = loss + config.monotonicity_weight * monotonicity_penalty(model, penalty_points)
+        loss.backward()
+        optimizer.step()
+        history.append(loss.item())
+
+    return model, history
