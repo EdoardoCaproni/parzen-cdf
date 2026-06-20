@@ -25,9 +25,8 @@ src/*.egg-info/
 .mypy_cache/
 .ruff_cache/
 
-# Generated data and experiment artifacts
+# Generated data and experiment artifacts (figures live in the tracked results/ dir)
 data/
-outputs/
 runs/
 *.pt
 *.ckpt

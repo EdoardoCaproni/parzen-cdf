@@ -5,7 +5,7 @@ monotone-by-construction / Sill) across a sweep of (small) hidden widths, then s
 the *true* mixture CDF/pdf. The headline output is a variant x width table -- the "performance at
 small size" story.
 
-    python scripts/run_step1.py                 # full sweep, saves a plot to outputs/
+    python scripts/run_step1.py                 # full sweep, saves a plot to results/
     python scripts/run_step1.py --no-plot       # skip plotting
 """
 
@@ -130,8 +130,8 @@ def _save_plot(grid, true_cdf, true_pdf, parzen_cdf, parzen_pdf, results, widths
 
     ax_cdf.set_title(f"CDF (width={width})"); ax_cdf.legend()
     ax_pdf.set_title(f"pdf = dF/dx (width={width})"); ax_pdf.legend()
-    os.makedirs("outputs", exist_ok=True)
-    path = os.path.join("outputs", f"step1_width{width}.png")
+    os.makedirs("results", exist_ok=True)
+    path = os.path.join("results", f"step1_width{width}.png")
     fig.tight_layout(); fig.savefig(path, dpi=120)
     print(f"saved plot -> {path}")
 
