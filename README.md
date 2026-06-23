@@ -25,6 +25,27 @@ pdf as the derivative of the trained network. We work first in one dimension, th
 
 See [docs/references.md](docs/references.md) for the bibliography.
 
+## Results so far (Step 1)
+
+A working univariate pipeline, evaluated against the *known* truth on a ladder of Gaussian
+mixtures:
+
+- **Logistic Parzen CDF/pdf estimator** with a closed-form CDF and a Silverman-rule bandwidth.
+- **Neural CDF regressor** trained on uniform collocation targets, comparing three monotonicity
+  strategies — unconstrained baseline, a soft derivative penalty, and a monotone-by-construction
+  (Sill 1998) network — with the pdf recovered by differentiating the learned CDF.
+- **Bandwidth study**: Silverman over-smooths multimodal densities; data-driven cross-validation
+  selectors recover most of the gap to an oracle bandwidth, and an adaptive (Abramson) bandwidth
+  wins on disparate-scale densities.
+
+The neural CDF/pdf fit on the asymmetric trimodal mixture, and the bandwidth-selector comparison:
+
+![Neural CDF and pdf on the trimodal mixture](results/results_asymmetric_trimodal.png)
+![Bandwidth selectors vs the oracle](results/bandwidth_selectors_study.png)
+
+All figures are reproducible via the scripts in [`scripts/`](scripts/) (e.g.
+`python scripts/generate_results.py`).
+
 ## Setup
 
 ```bash
