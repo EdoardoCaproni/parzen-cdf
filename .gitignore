@@ -31,6 +31,14 @@ runs/
 *.pt
 *.ckpt
 
+# LaTeX build artifacts (report.tex is tracked; the PDF is regenerated via pdflatex)
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.pdf
+report/build.log
+
 # OS / editor
 .DS_Store
 .vscode/

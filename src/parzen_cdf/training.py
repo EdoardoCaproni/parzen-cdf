@@ -39,6 +39,21 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
 
 
+def make_sample_training_set(samples: np.ndarray, h) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build ``(inputs, targets)`` from the data samples themselves -- the constraint-correct regime.
+
+    Per the project pipeline the MLP is trained ONLY on the drawn sample points ``x_i`` with label
+    ``F_hat(x_i)`` (the logistic Parzen CDF). No collocation, no synthetic ``x``, no augmentation:
+    the network sees exactly the data and its Parzen-CDF value there. ``h`` is a scalar or a
+    per-sample array. ``F_hat(x_i)`` is the full estimate (it includes ``x_i``'s own kernel).
+    """
+    samples = np.asarray(samples, dtype=float)
+    targets = parzen.parzen_cdf(samples, samples, h)
+    inputs_t = torch.as_tensor(samples, dtype=torch.float32)
+    targets_t = torch.as_tensor(targets, dtype=torch.float32)
+    return inputs_t, targets_t
+
+
 def make_training_set(
     samples: np.ndarray,
     h: float,
@@ -50,6 +65,10 @@ def make_training_set(
 
     Inputs are drawn uniformly from ``[min(samples) - k_pad*h, max(samples) + k_pad*h]`` (even
     coverage, including the saturating tails); targets are the logistic Parzen CDF at those points.
+
+    NOTE: this collocation scheme samples the Parzen CDF at synthetic ``x`` and so deviates from the
+    project constraint (train on the data points only). Kept as an out-of-constraint reference;
+    constraint-correct experiments use :func:`make_sample_training_set`.
     """
     lo = float(samples.min() - k_pad * h)
     hi = float(samples.max() + k_pad * h)

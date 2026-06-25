@@ -1,0 +1,171 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\graphicspath{{../results/}}
+
+\title{Neural Estimation of a CDF and its Density from Logistic Parzen Targets\\
+\large Progressive experiment report --- branch \texttt{experiments/cdf-extension}}
+\author{parzen-cdf}
+\date{\today}
+
+\newcommand{\Fhat}{\widehat{F}}
+\newcommand{\fhat}{\widehat{f}}
+\newcommand{\KS}{\mathrm{KS}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We train a sigmoidal multilayer perceptron (MLP) to approximate the cumulative distribution
+function (CDF) of a known Gaussian mixture, using as supervision only the logistic Parzen-window
+estimate evaluated at the drawn sample points, and recover the density as the derivative of the
+learned CDF. This report grows one experiment at a time: each section states a hypothesis, fixes a
+single experimental knob, and scores the result against the analytic truth. It is the LaTeX
+counterpart of the Markdown track record in \texttt{docs/experiments.md}.
+\end{abstract}
+
+\section{Pipeline and constraints}
+
+The pipeline is, end to end:
+\begin{enumerate}
+  \item Choose a known mixture of Gaussians, with closed-form pdf $f$ and CDF $F$.
+  \item Draw $n$ i.i.d.\ samples $X = \{x_1,\dots,x_n\}$.
+  \item Fit a logistic-window Parzen estimator on the samples (unsupervised), with bandwidth $h$:
+  \begin{equation}
+    \Fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\sigma\!\left(\frac{x-x_i}{h}\right),
+    \qquad
+    \fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\frac{1}{h}\,\sigma(z_i)\bigl(1-\sigma(z_i)\bigr),
+    \label{eq:parzen}
+  \end{equation}
+  with $\sigma$ the logistic sigmoid and $z_i=(x-x_i)/h$. The logistic kernel is chosen because its
+  integral is $\sigma$, giving a closed-form, smooth, strictly increasing CDF estimate; $\fhat$ is
+  exactly $\mathrm{d}\Fhat/\mathrm{d}x$.
+  \item Train a sigmoidal MLP $F_\theta$ to approximate the \emph{true} CDF, using the label
+  $\Fhat(x_i)$ at each sample point $x_i$.
+  \item Recover the density as $f_\theta = \mathrm{d}F_\theta/\mathrm{d}x$ (autograd), or via the
+  copula (Sklar; multivariate, deferred).
+\end{enumerate}
+
+\paragraph{Hard constraints.} (i) \emph{Train on the data points only}: inputs are exactly the $n$
+samples $x_i$, labels are $\Fhat(x_i)$; we never sample $\Fhat$ at synthetic $x$, build collocation
+grids, or augment the data. (ii) The learned CDF must be \emph{monotone non-decreasing}, enforced by
+a loss penalty, a downstream rectification, or a monotone-by-construction architecture. (iii) The
+network is sigmoidal and the targets are Gaussian mixtures.
+
+\paragraph{Note on the inherited code.} The original training-set builder samples $\Fhat$ at
+$\sim\!10^3$ uniform collocation points, which violates constraint~(i); it is retained only as an
+out-of-constraint reference. All experiments below use the constraint-correct builder
+$\{(x_i,\Fhat(x_i))\}_{i=1}^n$.
+
+\section{Method and conventions}
+
+\paragraph{Referee.} Because the data is synthetic, every estimate is scored against the analytic
+truth on a dense evaluation grid. The grid and the truth are used for evaluation only; they are
+never training data.
+
+\paragraph{Metrics.} We report the Kolmogorov--Smirnov distance on the CDF,
+$\KS = \max_x |F(x)-F_\theta(x)|$; the mean squared error of the pdf; the monotonicity violation
+fraction (the share of adjacent grid steps on which the estimated CDF decreases); and the recovered
+pdf mass $\int f_\theta\,\mathrm{d}x$, which should equal $1$. The Parzen estimate of
+Eq.~\eqref{eq:parzen} is the target the MLP fits, hence the accuracy \emph{ceiling} for a given $h$.
+
+\section{Experiments}
+
+\subsection{E0 --- Naive baseline (data points only)}
+
+\paragraph{Hypothesis.} A small sigmoidal MLP trained on $\{(x_i,\Fhat(x_i))\}$ recovers the Parzen
+target reasonably; monotonicity may not yet be binding; monotone-by-construction (Sill) costs
+accuracy.
+
+\paragraph{Setup.} All four mixtures; $n=2000$; fixed Silverman bandwidth; one hidden layer of width
+$16$ with sigmoid activations and a final sigmoid; Adam at learning rate $10^{-2}$ for $2000$ epochs;
+seed $0$. Three monotonicity arms: \texttt{baseline} (unconstrained), \texttt{soft} (penalty
+$\lambda=5$ on $\mathrm{relu}(-\mathrm{d}F_\theta/\mathrm{d}x)$ over the observed data range), and
+\texttt{sill} (non-negative weights, monotone by construction). The density is the clamped autograd
+derivative.
+
+\begin{table}[h]
+  \centering
+  \caption{E0 naive baseline. The \texttt{parzen} row is the target/ceiling. Lower $\KS$ and MSE are
+  better; pdf mass should be $\approx 1$.}
+  \begin{tabular}{llrrrr}
+    \toprule
+    Distribution & Variant & $\KS$(CDF) & MSE(pdf) & viol.\ \% & pdf mass \\
+    \midrule
+    \multirow{4}{*}{single\_gaussian ($h{=}0.196$)}
+      & parzen   & 0.0196 & 0.00019 & 0.00 & 0.9999 \\
+      & baseline & 0.0319 & 0.00024 & 0.00 & 0.9793 \\
+      & soft     & 0.0319 & 0.00024 & 0.00 & 0.9793 \\
+      & sill     & 0.0774 & 0.00094 & 0.00 & 0.8786 \\
+    \midrule
+    \multirow{4}{*}{symmetric\_bimodal ($h{=}0.413$)}
+      & parzen   & 0.0477 & 0.00154 & 0.00 & 0.9991 \\
+      & baseline & 0.1144 & 0.00828 & 0.00 & 0.9092 \\
+      & soft     & 0.1144 & 0.00828 & 0.00 & 0.9092 \\
+      & sill     & 0.1599 & 0.00916 & 0.00 & 0.8266 \\
+    \midrule
+    \multirow{4}{*}{asymmetric\_trimodal ($h{=}0.443$)}
+      & parzen   & 0.0470 & 0.00232 & 0.00 & 0.9957 \\
+      & baseline & 0.0883 & 0.00474 & 0.00 & 0.9096 \\
+      & soft     & 0.0883 & 0.00474 & 0.00 & 0.9096 \\
+      & sill     & 0.1268 & 0.00545 & 0.00 & 0.8164 \\
+    \midrule
+    \multirow{4}{*}{spike\_in\_broad ($h{=}0.158$)}
+      & parzen   & 0.0542 & 0.00336 & 0.00 & 0.9999 \\
+      & baseline & 0.0590 & 0.00361 & 0.00 & 0.9729 \\
+      & soft     & 0.0590 & 0.00361 & 0.00 & 0.9729 \\
+      & sill     & 0.0934 & 0.00717 & 0.00 & 0.8783 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{e0_naive_asymmetric_trimodal.png}
+  \caption{E0 on the asymmetric trimodal mixture. Left: CDF; right: recovered pdf. The width-16 net
+  under-fits (single smooth bump), and the Parzen target (gray, dashed) is itself over-smoothed by
+  the Silverman bandwidth.}
+\end{figure}
+
+\paragraph{Observations.}
+\begin{enumerate}
+  \item \texttt{baseline} and \texttt{soft} are \emph{identical}: the unconstrained net already has
+  zero monotonicity violations, so the penalty $\mathrm{mean}(\mathrm{relu}(-\mathrm{d}F/\mathrm{d}x))$
+  is zero and contributes no gradient. Monotonicity is not binding at this scale.
+  \item The net under-fits: the recovered pdf is a single smooth mode that misses the multimodal
+  structure, although it fits its labels well ($\text{train MSE}\sim 3\times10^{-4}$). This points to
+  the capacity and training-length axes.
+  \item Two stacked sources of error: even a perfect fit to the Parzen target cannot reach the truth,
+  because Silverman over-smooths the target. The bandwidth/target axis must improve alongside the fit.
+  \item Sill underperforms on every distribution and loses the most mass ($0.82$--$0.88$): the
+  non-negativity constraint costs expressiveness at width $16$.
+  \item All neural arms under-integrate ($0.82$--$0.98$) versus Parzen ($\approx 1.0$): the learned
+  CDF does not fully span $0\to1$ over the grid.
+\end{enumerate}
+
+\paragraph{Verdict.} Baseline established in a clear under-fitting regime with an over-smoothed
+target --- the headroom that Phase~1 (capacity, training, bandwidth) will probe.
+
+\section{Planned experiments}
+
+\begin{itemize}
+  \item \textbf{E1 Capacity:} hidden width and depth.
+  \item \textbf{E2 Optimization:} learning rate and epochs.
+  \item \textbf{E3 Bandwidth / target quality:} Silverman $\to$ variance-matched $\to$
+  cross-validation $\to$ adaptive (variable window).
+  \item \textbf{E4 Sample count:} $n$.
+  \item \textbf{E5 Monotonicity strategy:} soft-$\lambda$ vs Sill vs downstream rectification; pdf
+  mass renormalisation.
+  \item \textbf{E6} Interactions and best-of-axes pipeline; \textbf{E7} pdf-recovery refinements;
+  later, multivariate / copula approaches.
+\end{itemize}
+
+\end{document}
