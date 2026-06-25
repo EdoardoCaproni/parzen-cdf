@@ -83,6 +83,11 @@ def symmetric_bimodal() -> GaussianMixture1D:
     return GaussianMixture1D(weights=[0.5, 0.5], means=[-2.0, 2.0], stds=[0.7, 0.7])
 
 
+def asymmetric_bimodal() -> GaussianMixture1D:
+    """Unequal weights and widths with partial overlap; one gentle step past symmetric_bimodal."""
+    return GaussianMixture1D(weights=[0.65, 0.35], means=[0.0, 3.0], stds=[1.0, 0.6])
+
+
 def asymmetric_trimodal() -> GaussianMixture1D:
     """Unequal weights, different widths, and partial overlap -- the main running example."""
     return GaussianMixture1D(

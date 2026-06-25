@@ -152,7 +152,58 @@ derivative.
 \end{enumerate}
 
 \paragraph{Verdict.} Baseline established in a clear under-fitting regime with an over-smoothed
-target --- the headroom that Phase~1 (capacity, training, bandwidth) will probe.
+target. This was a premature cross-distribution snapshot; it is superseded by the staged dives that
+explore each distribution's inner ablation deeply (Sec.~\ref{sec:stageA}).
+
+\subsection{Stage A --- single Gaussian, inner ablation}
+\label{sec:stageA}
+
+We now treat distribution complexity as the outer progression and the ablation axes as the inner
+deep-dive, beginning with the simplest target $N(0,1)$. Each knob is varied off the naive baseline
+(width $16$, lr $10^{-2}$, $2000$ epochs, Silverman $h$, $n=2000$, unconstrained), training on the
+data points only, scored on a fixed grid $[-6,6]$. The Parzen ceiling is $\KS=0.0196$.
+
+\begin{table}[h]
+  \centering
+  \caption{Stage A inner ablation on $N(0,1)$. One knob varied per block; $\KS$ against the truth,
+  recovered pdf mass. Bold marks the best in each block; the Parzen ceiling is $\KS=0.0196$.}
+  \small
+  \begin{tabular}{llr r @{\hskip 2em} llr r}
+    \toprule
+    \multicolumn{4}{c}{} & \multicolumn{4}{c}{} \\[-1.8ex]
+    \multicolumn{2}{l}{E1 capacity} & $\KS$ & mass & \multicolumn{2}{l}{E2 optimisation} & $\KS$ & mass \\
+    \midrule
+    width & 16          & 0.0319 & 0.993 & lr     & $10^{-2}$ & 0.0319 & 0.993 \\
+    width & 64          & 0.0273 & 0.998 & lr     & $3\!\cdot\!10^{-2}$ & 0.0290 & 0.997 \\
+    width & 128         & 0.0263 & 0.998 & lr     & $\mathbf{10^{-1}}$ & \textbf{0.0193} & 0.997 \\
+    depth & 2 (32,32)   & \textbf{0.0208} & 0.995 & epochs & 5000 & 0.0210 & 0.998 \\
+    depth & 3 (32,32,32)& 0.0421 & 0.988 & epochs & \textbf{10000} & \textbf{0.0197} & 0.999 \\
+    \midrule
+    \multicolumn{2}{l}{E3 bandwidth} & $\KS$ & mass & \multicolumn{2}{l}{E4 / E5} & $\KS$ & mass \\
+    \midrule
+    scale & $0.3\times$ & 0.0261 & 0.994 & $n$       & 8000     & 0.0249 & 0.993 \\
+    scale & $1.0\times$ & 0.0319 & 0.993 & $n$       & 2000     & 0.0319 & 0.993 \\
+    scale & $1.5\times$ & 0.0409 & 0.991 & soft     & any $\lambda$ & 0.0319 & 0.993 \\
+    adaptive &          & \textbf{0.0256} & 0.993 & sill     & ---      & 0.0774 & 0.884 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{stage_a_single_gaussian.png}
+  \caption{Stage A inner ablation on $N(0,1)$: $\KS$ versus each knob. Gray dashed line is the Parzen
+  target ceiling.}
+\end{figure}
+
+\paragraph{Findings.} (i) The naive baseline is \emph{under-trained}; optimisation is the dominant
+lever --- $\mathrm{lr}=0.1$ or $10^4$ epochs each reach the Parzen ceiling. (ii) Capacity helps with
+diminishing returns; a depth-2 net is best, while depth-3 is harder to train at the same budget.
+(iii) For a unimodal target the bandwidth is a minor lever (slightly finer / adaptive is best,
+over-smoothing worst); its effect should grow on multimodal targets. (iv) Sample count gives a
+modest, noisy gain. (v) Monotonicity is not binding (the soft penalty is inactive at every
+$\lambda$); Sill is a pure accuracy/mass cost. The unconstrained sigmoidal MLP can match its Parzen
+target on $N(0,1)$; whether this survives a multimodal target is the Stage~B question.
 
 \section{Planned experiments}
 
