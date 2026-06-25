@@ -1,9 +1,24 @@
 {
   "meta": {
+    "name": "single_gaussian N(0,1)",
     "h_silverman": 0.1962655654847831,
     "n": 2000,
     "parzen_ks": 0.019598245761226485,
-    "parzen_mse": 0.00011581388718700454
+    "parzen_mse": 0.00011581388718700454,
+    "grid": [
+      -6.0,
+      6.0
+    ],
+    "baseline": {
+      "n": 2000,
+      "hidden": [
+        16
+      ],
+      "lr": 0.01,
+      "epochs": 2000,
+      "mono": false,
+      "soft": 0.0
+    }
   },
   "E1_capacity": {
     "width=4": {

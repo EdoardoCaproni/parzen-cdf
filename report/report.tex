@@ -205,6 +205,52 @@ modest, noisy gain. (v) Monotonicity is not binding (the soft penalty is inactiv
 $\lambda$); Sill is a pure accuracy/mass cost. The unconstrained sigmoidal MLP can match its Parzen
 target on $N(0,1)$; whether this survives a multimodal target is the Stage~B question.
 
+\subsection{Stage B --- simple mixtures, inner ablation}
+\label{sec:stageB}
+
+We repeat the inner ablation on two simple bimodals --- $M_1 = 0.5\,N(-2,0.7)+0.5\,N(2,0.7)$ and
+$M_2 = 0.65\,N(0,1)+0.35\,N(3,0.6)$ --- at the improved baseline carried from Stage~A (width $32$,
+$\mathrm{lr}=0.1$, $5000$ epochs), with the sample-count axis averaged over three seeds.
+
+\begin{table}[h]
+  \centering
+  \caption{Stage B, E3 bandwidth axis: $\KS$ against the truth as the bandwidth varies. Truth-free
+  CV / adaptive selection roughly halves the error versus Silverman ($1.0\times$). Parzen ceilings at
+  Silverman: $M_1$ $0.0477$, $M_2$ $0.0270$.}
+  \begin{tabular}{lrr}
+    \toprule
+    bandwidth & $M_1$ $\KS$ & $M_2$ $\KS$ \\
+    \midrule
+    $0.3\times$ Silverman & 0.0199 & 0.0115 \\
+    $1.0\times$ (Silverman) & 0.0495 & 0.0267 \\
+    $1.5\times$ (over-smoothed) & 0.0687 & 0.0453 \\
+    variance-matched & 0.0258 & 0.0157 \\
+    likelihood-CV & 0.0195 & 0.0121 \\
+    LSCV & 0.0195 & 0.0125 \\
+    \textbf{adaptive (Abramson)} & \textbf{0.0185} & \textbf{0.0121} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.49\textwidth]{stage_b_symmetric_bimodal.png}\hfill
+  \includegraphics[width=0.49\textwidth]{stage_b_asymmetric_bimodal.png}
+  \caption{Stage B inner ablation: $M_1$ (left), $M_2$ (right). The bandwidth panel (bottom-left)
+  shows the dominant downward trend toward finer $h$; capacity and monotonicity panels are flat. The
+  $\mathrm{width}=128$ run diverged at $\mathrm{lr}=0.1$ (annotated, excluded from the line).}
+\end{figure}
+
+\paragraph{Findings.} (i) \textbf{Bandwidth is the dominant lever} on mixtures: CV / adaptive
+selectors halve $\KS$ versus Silverman, and the gain is truth-free. (ii) The network is a
+\emph{faithful regressor} --- its $\KS$ tracks the Parzen $\KS$ across both $n$ and $h$, so the
+accuracy bottleneck is the target, not the net. (iii) Capacity plateaus early (width $\geq 8$
+suffices); the Stage~A under-fit was an optimisation, not a capacity, issue. (iv) $\mathrm{lr}=0.1$
+diverges at width $128$ (KS $1.0$, mass $0$): the safe rate is $\approx 0.03$. (v) Monotonicity is
+still not binding (zero violations; the soft penalty inactive; Sill now competitive). Net: through
+simple mixtures the regressor saturates its target, and the highest-leverage knob within the
+constraints is truth-free bandwidth selection.
+
 \section{Planned experiments}
 
 \begin{itemize}
