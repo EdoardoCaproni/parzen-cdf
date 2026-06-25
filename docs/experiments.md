@@ -89,10 +89,20 @@ the multimodal preview it gave.
   (expected on sharp/overlapping modes — Stage C).
 - **H6 (pdf mass):** mass ≈ 0.99 once trained on G1/M1/M2; post-hoc normalisation barely helps.
   Larger effect only where mass loss is larger (the E0 multimodal preview showed 0.82–0.91).
-- **H7 (faithful regressor) — *new, key finding*:** the neural KS ≈ the Parzen KS across both `h`
+- **H7 (faithful regressor) — *key finding*:** the neural KS ≈ the Parzen KS across both `h`
   (E3) and `n` (E4). The MLP is a *faithful* CDF regressor; given adequate (not over-aggressive)
   optimisation, the accuracy-vs-truth bottleneck is the **Parzen target**, not the network. So the
   highest-leverage move within the constraints is better *truth-free bandwidth selection*.
+- **H8 (explicit smoothing fails) — *follow-up*:** regularising the net toward smoothness does **not**
+  denoise. Weight decay is actively harmful (it pulls the output toward a flat `σ(0)=0.5`); a
+  CDF-appropriate curvature penalty on `d²F/dx²` is neutral-to-mildly-harmful. The width-32 net is
+  already implicitly smooth enough — extra smoothing only adds bias.
+- **H9 (the net *can* beat the kernel) — *follow-up, the payoff*:** ensembling robustly beats the
+  Silverman ceiling (variance reduction, larger at small `n`); and an **ensemble on a sharper
+  (0.5×) bandwidth beats even the best truth-free kernel (adaptive)** at small `n` (n=500, all three
+  distributions). The sharper bandwidth lowers bias; the ensemble cleans the resulting variance. The
+  effect is a small-sample phenomenon — at `n=2000` the net beats only the default, not the best,
+  kernel.
 
 ---
 
@@ -304,3 +314,72 @@ baseline for Stage C:** width 32, **lr 0.03** (0.1 risks divergence), epochs ≥
 or CV bandwidth**. The open question Stage C answers: do capacity and monotonicity finally bite on
 *sharp / overlapping* modes (trimodal, spike-in-broad), and can a better bandwidth still rescue them?
 Reproduce: `python scripts/experiments/stage_b_simple_mixtures.py`.
+
+---
+
+# Follow-up — can the network *beat* the kernel, not just copy it?
+
+> This is a **follow-up phase, separate from the naive ladder above.** The naive experiments
+> established that a well-trained network only *reproduces* its Parzen target (H7). Here we test the
+> two power-ups that could let it *surpass* the target, both inside the strict rule (train only on
+> `(xᵢ, F̂(xᵢ))`). Script: `scripts/experiments/followup_denoising.py`.
+
+**The idea.** `F̂(xᵢ)` is a *noisy* estimate of the true `F(xᵢ)`. A model that fits the smooth
+*trend* of the noisy labels (rather than interpolating their finite-sample wiggle) can average that
+noise out and land closer to the truth than the labels themselves. Two levers:
+
+- **Power-up 1 — smoothing.** A first attempt with **weight decay** failed badly (any λ>0 made it
+  worse; λ=0.1 → KS≈0.50, a collapsed flat CDF — L2 pulls the output toward `σ(0)=0.5`, the wrong
+  prior for a CDF). We then used the CDF-appropriate prior: a **curvature penalty** on `d²F/dx²`
+  (`training.curvature_penalty`), evaluated at the data points only (strict).
+- **Power-up 2 — ensembling.** Average several nets (different seeds) to cancel their variance; spread
+  estimated honestly over all `C(8,5)=56` size-5 subsets of 8 trained nets.
+- **The combination.** A **sharper (0.5× Silverman) bandwidth** gives a less-biased target; its extra
+  variance is then cleaned up by the ensemble.
+
+**Setup.** Width 32, lr 0.03, 2500 epochs; 8 seeds; data points only. References: the Parzen estimate
+at Silverman's bandwidth (the ceiling the naive net matched) and at the adaptive bandwidth (the best
+truth-free kernel). Denoising should matter most at small `n`, so we sweep `n`.
+
+**Results — CDF gap (KS) vs truth at `n=500`** (mean ± std; lower is better):
+
+| method | single Gaussian | symmetric bimodal | asymmetric bimodal |
+|---|---|---|---|
+| Parzen, Silverman (ceiling) | 0.031 ± 0.012 | 0.079 ± 0.010 | 0.047 ± 0.009 |
+| Parzen, adaptive (**best kernel**) | 0.025 ± 0.011 | 0.046 ± 0.012 | 0.028 ± 0.010 |
+| net, plain @ Silverman | 0.033 ± 0.009 | 0.081 ± 0.010 | 0.048 ± 0.010 |
+| net + curvature(1e-2) @ Silverman | 0.035 ± 0.012 | 0.083 ± 0.011 | 0.050 ± 0.011 |
+| ensemble @ Silverman | 0.030 ± 0.003 | 0.070 ± 0.006 | 0.042 ± 0.002 |
+| net, plain @ 0.5× bandwidth | 0.028 ± 0.009 | 0.049 ± 0.013 | 0.031 ± 0.010 |
+| **ensemble @ 0.5× bandwidth (combo)** | **0.017 ± 0.002** | **0.035 ± 0.006** | **0.024 ± 0.002** |
+
+![Follow-up](../results/followup_denoising.png)
+
+**Findings.**
+
+1. **Explicit smoothing does not help (H8).** Weight decay is harmful (wrong prior); the curvature
+   penalty is neutral-to-mildly-harmful. The small net is already implicitly smooth — forcing more
+   only adds bias. So "denoise by regularising the net" — the obvious idea — is a **negative result**.
+2. **Ensembling beats the Silverman ceiling (H9).** Robustly on the mixtures (margin > seed std), more
+   at small `n`. This is the predicted variance-reduction denoising, and it comes for free from
+   averaging nets we already train.
+3. **The combination beats the *best* kernel (the payoff).** At `n=500`, an ensemble trained on a
+   sharper-than-default bandwidth beats not just the Silverman ceiling but the **adaptive kernel** —
+   on all three distributions, in the mean and with markedly smaller variance (e.g. single Gaussian
+   0.017 vs 0.025; symmetric 0.035 vs 0.046; asymmetric 0.024 vs 0.028). The sharper bandwidth lowers
+   bias; the ensemble cleans the resulting variance. **This is the first concrete evidence the neural
+   step adds value beyond any single-bandwidth kernel.**
+4. **It is a small-sample effect.** At `n=2000` the combo still beats the default (Silverman) kernel
+   but no longer the adaptive one (e.g. asymmetric: combo 0.020 vs adaptive 0.013) — at large `n` the
+   kernel is already near-optimal, leaving little for the net to add.
+
+**Verdict.** The network earns its place — but via **ensembling + a sharper bandwidth** (implicit
+smoothness plus variance reduction), **not** via explicit smoothness regularisation, which failed.
+This is exactly why we did not simply run Stage C: we now have a network configuration that *adds*
+something, which is what makes carrying it into the harder distributions worthwhile.
+
+**Caveat & next step.** The 0.5× sharpening is a *fixed heuristic*, not data-driven. The clean,
+fully-deployable version pairs the ensemble with a **data-driven** sharper bandwidth (cross-validation
+or adaptive) — the immediate next experiment. Then Stage C carries `{ensemble + data-driven sharp
+bandwidth}` into the trimodal / spike / arbitrary-mixture cases. Reproduce:
+`python scripts/experiments/followup_denoising.py`.

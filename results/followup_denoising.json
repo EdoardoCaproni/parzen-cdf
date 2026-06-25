@@ -1,0 +1,212 @@
+{
+  "single_gaussian": {
+    "n=500": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.03081989183035734,
+        "ks_std": 0.011471144639739016
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.024698187845764018,
+        "ks_std": 0.010951330778174867
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.03289186398870221,
+        "ks_std": 0.009378230796111876
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.03258552965359472,
+        "ks_std": 0.009385636972644038
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.03542679494014139,
+        "ks_std": 0.011667995869525355
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.029491256524350362,
+        "ks_std": 0.002855064952280829
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.027478848925040905,
+        "ks_std": 0.008686317959408071
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.016559828458005098,
+        "ks_std": 0.001513638904929148
+      }
+    },
+    "n=2000": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.019391223994817006,
+        "ks_std": 0.005596695080329308
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.012924862462674522,
+        "ks_std": 0.005574447274544029
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.025472567035297343,
+        "ks_std": 0.0026512237096605893
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.026005575881209834,
+        "ks_std": 0.002774680957514988
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.02601856894350091,
+        "ks_std": 0.0058666061500572955
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.022949000442078784,
+        "ks_std": 0.0015515349356480326
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.020937278444526062,
+        "ks_std": 0.005698580740436139
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.0163415822768048,
+        "ks_std": 0.0012675011980040941
+      }
+    }
+  },
+  "symmetric_bimodal": {
+    "n=500": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.07852772924813686,
+        "ks_std": 0.009609262084788628
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.04559995501916145,
+        "ks_std": 0.012342010651906626
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.08063139102256667,
+        "ks_std": 0.010430532216364516
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.08139311453508402,
+        "ks_std": 0.01047619151803602
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.08273341029100703,
+        "ks_std": 0.011006659528373923
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.07042879539501681,
+        "ks_std": 0.005497885931713587
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.04861218196147424,
+        "ks_std": 0.012726352399740874
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.03514870675259584,
+        "ks_std": 0.005867028700606101
+      }
+    },
+    "n=2000": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.04906871989857262,
+        "ks_std": 0.0036755558138994913
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.018333791575422462,
+        "ks_std": 0.0055443385011674715
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.05255876639735544,
+        "ks_std": 0.003478466516775777
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.05218766837542634,
+        "ks_std": 0.002903780999035647
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.057663330704717075,
+        "ks_std": 0.004782470293524725
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.04825109570816028,
+        "ks_std": 0.0013389852852566623
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.027042474077141512,
+        "ks_std": 0.004910164138360754
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.022121542030920597,
+        "ks_std": 0.0011307353161870348
+      }
+    }
+  },
+  "asymmetric_bimodal": {
+    "n=500": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.04718977504162267,
+        "ks_std": 0.00937417695425436
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.027649074872343235,
+        "ks_std": 0.010447680634158707
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.04765073342787417,
+        "ks_std": 0.010174989737317794
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.047885239326395435,
+        "ks_std": 0.010855883643419661
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.050029567499398304,
+        "ks_std": 0.010575838827695173
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.04238311321391112,
+        "ks_std": 0.002066865650818055
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.031225653729929817,
+        "ks_std": 0.010309949699272883
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.024006792895443725,
+        "ks_std": 0.0019248888118959242
+      }
+    },
+    "n=2000": {
+      "parzen silverman (ceiling)": {
+        "ks_mean": 0.030022608156165434,
+        "ks_std": 0.0032818168838288694
+      },
+      "parzen adaptive (best kernel)": {
+        "ks_mean": 0.012708023863497432,
+        "ks_std": 0.0036558461132475844
+      },
+      "net plain @ silverman": {
+        "ks_mean": 0.03145771304652403,
+        "ks_std": 0.0024824137239987712
+      },
+      "net + curvature 1e-3 @ silverman": {
+        "ks_mean": 0.031393771492041096,
+        "ks_std": 0.0024500386086219648
+      },
+      "net + curvature 1e-2 @ silverman": {
+        "ks_mean": 0.03474724176788588,
+        "ks_std": 0.0025935631911357094
+      },
+      "ENSEMBLE @ silverman (any 5 of 8)": {
+        "ks_mean": 0.02987063722845703,
+        "ks_std": 0.0007788927829522065
+      },
+      "net plain @ 0.5x bandwidth": {
+        "ks_mean": 0.02147059969922878,
+        "ks_std": 0.0018264807446691112
+      },
+      "ENSEMBLE @ 0.5x bandwidth (combo)": {
+        "ks_mean": 0.02039605102478839,
+        "ks_std": 0.0007224843588539575
+      }
+    }
+  }
+}

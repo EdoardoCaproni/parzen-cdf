@@ -28,6 +28,8 @@ class TrainConfig:
     epochs: int = 2000
     lr: float = 1e-2
     monotonicity_weight: float = 0.0  # 0 = unconstrained baseline; > 0 = soft penalty
+    weight_decay: float = 0.0  # L2 regularization (wrong smoothness prior for a CDF net; see follow-up)
+    curvature_weight: float = 0.0  # > 0 penalizes |d2F/dx2|: a CDF-appropriate smoothness prior
     n_penalty_points: int = 256
     seed: int = 0
 
@@ -91,6 +93,21 @@ def monotonicity_penalty(model: CDFNet, x: torch.Tensor) -> torch.Tensor:
     return torch.relu(-grad).mean()
 
 
+def curvature_penalty(model: CDFNet, x: torch.Tensor) -> torch.Tensor:
+    """Mean squared second derivative ``(d2F/dx2)^2`` at the points ``x``: a smoothness prior.
+
+    The true CDF is smooth, whereas the finite-sample Parzen labels are wiggly; penalizing curvature
+    encourages the network to fit the underlying trend instead of interpolating that wiggle. Unlike
+    weight decay (which pulls the output toward a flat ``sigmoid(0)=0.5``), this targets smoothness
+    of the *function*, so it does not bias the CDF toward a constant.
+    """
+    x = x.detach().clone().requires_grad_(True)
+    f = model(x)
+    g1 = torch.autograd.grad(f.sum(), x, create_graph=True)[0]
+    g2 = torch.autograd.grad(g1.sum(), x, create_graph=True)[0]
+    return (g2 ** 2).mean()
+
+
 def density_from_cdf(model: CDFNet, x: torch.Tensor, clamp: bool = True) -> torch.Tensor:
     """Recover the 1-D pdf as ``dF/dx`` via autograd; optionally clamp negatives to 0."""
     x = x.detach().clone().requires_grad_(True)
@@ -112,11 +129,11 @@ def train_cdf(
     at ``penalty_points`` (defaults to uniform points over the input range).
     """
     set_seed(config.seed)
-    if config.monotonicity_weight > 0 and penalty_points is None:
+    if (config.monotonicity_weight > 0 or config.curvature_weight > 0) and penalty_points is None:
         lo, hi = inputs.min().item(), inputs.max().item()
         penalty_points = torch.linspace(lo, hi, config.n_penalty_points)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
     mse = torch.nn.MSELoss()
     history: list[float] = []
 
@@ -125,6 +142,8 @@ def train_cdf(
         loss = mse(model(inputs), targets)
         if config.monotonicity_weight > 0:
             loss = loss + config.monotonicity_weight * monotonicity_penalty(model, penalty_points)
+        if config.curvature_weight > 0:
+            loss = loss + config.curvature_weight * curvature_penalty(model, penalty_points)
         loss.backward()
         optimizer.step()
         history.append(loss.item())
