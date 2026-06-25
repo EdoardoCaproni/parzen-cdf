@@ -4,265 +4,324 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{multirow}
 \usepackage{caption}
 \usepackage{hyperref}
 \usepackage{xcolor}
 
 \graphicspath{{../results/}}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
 
-\title{Neural Estimation of a CDF and its Density from Logistic Parzen Targets\\
-\large Progressive experiment report --- branch \texttt{experiments/cdf-extension}}
-\author{parzen-cdf}
+\title{Learning a Cumulative Distribution Function with a Neural Network,\\
+Trained on a Kernel-Density Estimate}
+\author{Univariate experiments (Step 1)}
 \date{\today}
 
 \newcommand{\Fhat}{\widehat{F}}
 \newcommand{\fhat}{\widehat{f}}
-\newcommand{\KS}{\mathrm{KS}}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-We train a sigmoidal multilayer perceptron (MLP) to approximate the cumulative distribution
-function (CDF) of a known Gaussian mixture, using as supervision only the logistic Parzen-window
-estimate evaluated at the drawn sample points, and recover the density as the derivative of the
-learned CDF. This report grows one experiment at a time: each section states a hypothesis, fixes a
-single experimental knob, and scores the result against the analytic truth. It is the LaTeX
-counterpart of the Markdown track record in \texttt{docs/experiments.md}.
+We study a small pipeline for estimating a probability distribution from samples. From data drawn
+from a \emph{known} distribution we build a smooth, closed-form estimate of its cumulative
+distribution function (CDF), then train a neural network to reproduce that estimate, and finally read
+the probability density off the trained network as its derivative. Because the data comes from a
+known distribution, we can score every estimate against the exact truth. This report is
+self-contained: it defines each ingredient, then narrates the experiments run so far --- a naive
+baseline, a deep study on a single Gaussian, and a study on two simple mixtures --- and states what
+we learned. The headline result is that, once trained properly, \textbf{the network faithfully
+reproduces the kernel estimate it is trained on but does not by itself surpass it}; the largest
+accuracy gain comes from a better, fully data-driven choice of the kernel's smoothing width. We close
+with the open question this raises and the techniques that could answer it.
 \end{abstract}
 
-\section{Pipeline and constraints}
+\tableofcontents
 
-The pipeline is, end to end:
+\section{The problem and the idea}
+
+We are given samples $x_1,\dots,x_n$ drawn independently from some distribution, and we want to
+estimate that distribution: both its \textbf{cumulative distribution function} (CDF)
+$F(x) = \Pr[X \le x]$ --- a curve that rises monotonically from $0$ to $1$ --- and its
+\textbf{probability density function} (the density, or pdf) $f(x) = F'(x)$.
+
+The experimental trick is to use \emph{synthetic} data from a \emph{known} distribution, specifically
+a mixture of Gaussians (a weighted sum of bell curves). A Gaussian mixture has a known density, a
+known CDF, and an exact sampler, so any estimate we produce can be compared against the exact truth.
+
+The pipeline, in plain terms:
 \begin{enumerate}
-  \item Choose a known mixture of Gaussians, with closed-form pdf $f$ and CDF $F$.
-  \item Draw $n$ i.i.d.\ samples $X = \{x_1,\dots,x_n\}$.
-  \item Fit a logistic-window Parzen estimator on the samples (unsupervised), with bandwidth $h$:
-  \begin{equation}
-    \Fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\sigma\!\left(\frac{x-x_i}{h}\right),
-    \qquad
-    \fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\frac{1}{h}\,\sigma(z_i)\bigl(1-\sigma(z_i)\bigr),
-    \label{eq:parzen}
-  \end{equation}
-  with $\sigma$ the logistic sigmoid and $z_i=(x-x_i)/h$. The logistic kernel is chosen because its
-  integral is $\sigma$, giving a closed-form, smooth, strictly increasing CDF estimate; $\fhat$ is
-  exactly $\mathrm{d}\Fhat/\mathrm{d}x$.
-  \item Train a sigmoidal MLP $F_\theta$ to approximate the \emph{true} CDF, using the label
-  $\Fhat(x_i)$ at each sample point $x_i$.
-  \item Recover the density as $f_\theta = \mathrm{d}F_\theta/\mathrm{d}x$ (autograd), or via the
-  copula (Sklar; multivariate, deferred).
+  \item \textbf{Choose} a known Gaussian mixture.
+  \item \textbf{Sample} $n$ points from it.
+  \item \textbf{Smooth-estimate the CDF} from those points with a kernel method (Section~\ref{sec:parzen}),
+  giving a smooth closed-form curve $\Fhat$.
+  \item \textbf{Train a neural network} to reproduce $\Fhat$, using the network's output as an
+  estimate of the \emph{true} CDF.
+  \item \textbf{Recover the density} as the derivative of the trained network.
 \end{enumerate}
 
-\paragraph{Hard constraints.} (i) \emph{Train on the data points only}: inputs are exactly the $n$
-samples $x_i$, labels are $\Fhat(x_i)$; we never sample $\Fhat$ at synthetic $x$, build collocation
-grids, or augment the data. (ii) The learned CDF must be \emph{monotone non-decreasing}, enforced by
-a loss penalty, a downstream rectification, or a monotone-by-construction architecture. (iii) The
-network is sigmoidal and the targets are Gaussian mixtures.
+\paragraph{Why involve a neural network at all, if the kernel method already gives a CDF?} This is a
+fair question and part of what the experiments probe. The hoped-for payoffs are: a compact,
+differentiable functional form (so the density comes for free by differentiation); the possibility
+that the network's built-in smoothness \emph{denoises} the finite-sample kernel estimate and lands
+closer to the truth than the estimate it is trained on; and a path to higher dimensions later.
+Whether the network actually delivers the first two is something we test, not assume.
 
-\paragraph{Note on the inherited code.} The original training-set builder samples $\Fhat$ at
-$\sim\!10^3$ uniform collocation points, which violates constraint~(i); it is retained only as an
-out-of-constraint reference. All experiments below use the constraint-correct builder
-$\{(x_i,\Fhat(x_i))\}_{i=1}^n$.
+\paragraph{The rule that defines this project.} The network is trained \textbf{only on the $n$ sample
+points}, each labelled with the kernel estimate's value there. We do not invent extra input points,
+we do not query the kernel estimate anywhere except at the data, and we do not augment the data in any
+way. This is a deliberate, strict honesty constraint: the network sees exactly the data and nothing
+more. (The dense grids that appear later are used only for \emph{scoring} against the truth, never for
+training.)
 
-\section{Method and conventions}
+\section{The building blocks}
+\label{sec:parzen}
 
-\paragraph{Referee.} Because the data is synthetic, every estimate is scored against the analytic
-truth on a dense evaluation grid. The grid and the truth are used for evaluation only; they are
-never training data.
+\subsection{The kernel estimate of the CDF}
 
-\paragraph{Metrics.} We report the Kolmogorov--Smirnov distance on the CDF,
-$\KS = \max_x |F(x)-F_\theta(x)|$; the mean squared error of the pdf; the monotonicity violation
-fraction (the share of adjacent grid steps on which the estimated CDF decreases); and the recovered
-pdf mass $\int f_\theta\,\mathrm{d}x$, which should equal $1$. The Parzen estimate of
-Eq.~\eqref{eq:parzen} is the target the MLP fits, hence the accuracy \emph{ceiling} for a given $h$.
+A kernel density estimate (also called a Parzen-window estimate) places a small bump --- a
+\emph{kernel} --- on each data point and sums them. We use a \textbf{logistic kernel}, chosen for one
+convenient property: the integral of the logistic bump is the logistic S-curve
+$\sigma(z) = 1/(1+e^{-z})$. That makes the estimated CDF available in closed form as an average of
+S-curves, and the density is its exact derivative:
+\begin{equation}
+  \Fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\sigma\!\Big(\frac{x-x_i}{h}\Big),
+  \qquad
+  \fhat(x) = \frac{1}{n}\sum_{i=1}^{n}\frac{1}{h}\,\sigma(z_i)\,\big(1-\sigma(z_i)\big),
+  \quad z_i = \frac{x-x_i}{h}.
+\end{equation}
+Here $h>0$ is the \textbf{bandwidth}: the width of each bump. A small $h$ gives a sharp, wiggly
+estimate; a large $h$ gives a smooth, blurry one. Choosing $h$ well is the central tuning problem of
+kernel estimation.
 
-\section{Experiments}
+\subsection{Ways to choose the bandwidth (all data-driven)}
 
-\subsection{E0 --- Naive baseline (data points only)}
+Every rule below uses only the samples --- none peeks at the truth --- so each is something one could
+actually deploy.
+\begin{itemize}
+  \item \textbf{Silverman's rule}: a standard closed-form default, $h \propto n^{-1/5}$ times a
+  spread estimate. Simple, but tuned for a single bell-shaped distribution, so it tends to
+  over-smooth distributions with several peaks.
+  \item \textbf{Variance-matched}: Silverman's rule rescaled so the (wider) logistic kernel smooths
+  like the bell-shaped kernel Silverman was designed for --- a principled shrink of $h$.
+  \item \textbf{Cross-validation}: pick $h$ by leaving each point out and asking which $h$ best
+  predicts the held-out points. Two variants: a likelihood criterion and a least-squares criterion.
+  \item \textbf{Adaptive (per-point) bandwidth}: use a \emph{narrower} bump where data is dense and a
+  \emph{wider} one in sparse tails, instead of one global $h$. Good for distributions whose features
+  live at different scales.
+\end{itemize}
 
-\paragraph{Hypothesis.} A small sigmoidal MLP trained on $\{(x_i,\Fhat(x_i))\}$ recovers the Parzen
-target reasonably; monotonicity may not yet be binding; monotone-by-construction (Sill) costs
-accuracy.
+\subsection{The neural network}
 
-\paragraph{Setup.} All four mixtures; $n=2000$; fixed Silverman bandwidth; one hidden layer of width
-$16$ with sigmoid activations and a final sigmoid; Adam at learning rate $10^{-2}$ for $2000$ epochs;
-seed $0$. Three monotonicity arms: \texttt{baseline} (unconstrained), \texttt{soft} (penalty
-$\lambda=5$ on $\mathrm{relu}(-\mathrm{d}F_\theta/\mathrm{d}x)$ over the observed data range), and
-\texttt{sill} (non-negative weights, monotone by construction). The density is the clamped autograd
-derivative.
+The network is a small \textbf{multilayer perceptron}: a few layers of weighted sums separated by a
+smooth S-shaped activation, mapping a scalar $x$ to a value in $(0,1)$ via a final S-curve (so the
+output has the range of a CDF). We require \emph{smooth} activations because the density is obtained
+by differentiating the output; a kink in the network would put a discontinuity in the density.
 
-\begin{table}[h]
-  \centering
-  \caption{E0 naive baseline. The \texttt{parzen} row is the target/ceiling. Lower $\KS$ and MSE are
-  better; pdf mass should be $\approx 1$.}
-  \begin{tabular}{llrrrr}
-    \toprule
-    Distribution & Variant & $\KS$(CDF) & MSE(pdf) & viol.\ \% & pdf mass \\
-    \midrule
-    \multirow{4}{*}{single\_gaussian ($h{=}0.196$)}
-      & parzen   & 0.0196 & 0.00019 & 0.00 & 0.9999 \\
-      & baseline & 0.0319 & 0.00024 & 0.00 & 0.9793 \\
-      & soft     & 0.0319 & 0.00024 & 0.00 & 0.9793 \\
-      & sill     & 0.0774 & 0.00094 & 0.00 & 0.8786 \\
-    \midrule
-    \multirow{4}{*}{symmetric\_bimodal ($h{=}0.413$)}
-      & parzen   & 0.0477 & 0.00154 & 0.00 & 0.9991 \\
-      & baseline & 0.1144 & 0.00828 & 0.00 & 0.9092 \\
-      & soft     & 0.1144 & 0.00828 & 0.00 & 0.9092 \\
-      & sill     & 0.1599 & 0.00916 & 0.00 & 0.8266 \\
-    \midrule
-    \multirow{4}{*}{asymmetric\_trimodal ($h{=}0.443$)}
-      & parzen   & 0.0470 & 0.00232 & 0.00 & 0.9957 \\
-      & baseline & 0.0883 & 0.00474 & 0.00 & 0.9096 \\
-      & soft     & 0.0883 & 0.00474 & 0.00 & 0.9096 \\
-      & sill     & 0.1268 & 0.00545 & 0.00 & 0.8164 \\
-    \midrule
-    \multirow{4}{*}{spike\_in\_broad ($h{=}0.158$)}
-      & parzen   & 0.0542 & 0.00336 & 0.00 & 0.9999 \\
-      & baseline & 0.0590 & 0.00361 & 0.00 & 0.9729 \\
-      & soft     & 0.0590 & 0.00361 & 0.00 & 0.9729 \\
-      & sill     & 0.0934 & 0.00717 & 0.00 & 0.8783 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+A CDF must never decrease. We consider three ways to enforce this:
+\begin{itemize}
+  \item \textbf{A penalty} that punishes any downward slope of the network output during training;
+  \item \textbf{Monotone-by-construction}: forcing every weight to be non-negative (via a smooth
+  positive reparameterisation) so the network is automatically non-decreasing --- we call this the
+  \emph{constrained} network;
+  \item \textbf{After-the-fact correction}: rectify a trained curve to be non-decreasing.
+\end{itemize}
+
+\subsection{The scorecard}
+
+\begin{itemize}
+  \item \textbf{CDF gap} (Kolmogorov--Smirnov distance): the single largest vertical gap between the
+  estimated CDF and the true CDF. One number; smaller is better. We write it as ``CDF gap''.
+  \item \textbf{Density error}: mean squared error between the estimated and true density.
+  \item \textbf{Monotonicity violations}: the fraction of the curve that goes downhill (should be $0$).
+  \item \textbf{Recovered mass}: the integral of the estimated density (should be $1$).
+\end{itemize}
+
+\paragraph{The ``kernel ceiling''.} Because the network is trained to copy the kernel estimate
+$\Fhat$, the kernel estimate's own gap to the truth is the network's target --- and, in the ordinary
+case, the best it can be expected to do. Throughout, we report this kernel ceiling alongside the
+network so the reader can see how close the network gets, and whether it ever does better.
+
+\section{The experiments}
+
+All experiments train only on the data points, score against the known truth on a dense grid, and use
+a fixed random seed for reproducibility. We vary one setting at a time off a baseline.
+
+\subsection{First attempt: a naive baseline}
+
+We start as simply as possible: a one-hidden-layer network of width $16$, a modest learning rate
+($0.01$) and training length ($2000$ steps), Silverman's bandwidth, $n=2000$ samples, on all four of
+our distributions at once. The network learns a sensible CDF, but the recovered density is a single
+smooth bump that misses any multi-peak structure (Figure~\ref{fig:naive}). Two problems are stacked:
+the small network is \emph{under-trained}, and the Silverman bandwidth has \emph{over-smoothed} the
+target it is being trained to copy. This motivates studying the knobs deliberately, one distribution
+at a time, starting from the simplest.
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{e0_naive_asymmetric_trimodal.png}
-  \caption{E0 on the asymmetric trimodal mixture. Left: CDF; right: recovered pdf. The width-16 net
-  under-fits (single smooth bump), and the Parzen target (gray, dashed) is itself over-smoothed by
-  the Silverman bandwidth.}
+  \caption{The naive baseline on a three-peak mixture. Left: CDF; right: density. Black is the truth,
+  gray dashed is the kernel estimate the network is trained to copy, coloured curves are the network
+  (three monotonicity strategies). The network under-fits to a single bump, and the kernel target
+  itself is too smooth to show the three peaks.}
+  \label{fig:naive}
 \end{figure}
 
-\paragraph{Observations.}
-\begin{enumerate}
-  \item \texttt{baseline} and \texttt{soft} are \emph{identical}: the unconstrained net already has
-  zero monotonicity violations, so the penalty $\mathrm{mean}(\mathrm{relu}(-\mathrm{d}F/\mathrm{d}x))$
-  is zero and contributes no gradient. Monotonicity is not binding at this scale.
-  \item The net under-fits: the recovered pdf is a single smooth mode that misses the multimodal
-  structure, although it fits its labels well ($\text{train MSE}\sim 3\times10^{-4}$). This points to
-  the capacity and training-length axes.
-  \item Two stacked sources of error: even a perfect fit to the Parzen target cannot reach the truth,
-  because Silverman over-smooths the target. The bandwidth/target axis must improve alongside the fit.
-  \item Sill underperforms on every distribution and loses the most mass ($0.82$--$0.88$): the
-  non-negativity constraint costs expressiveness at width $16$.
-  \item All neural arms under-integrate ($0.82$--$0.98$) versus Parzen ($\approx 1.0$): the learned
-  CDF does not fully span $0\to1$ over the grid.
-\end{enumerate}
+\subsection{A deep study on the single Gaussian}
 
-\paragraph{Verdict.} Baseline established in a clear under-fitting regime with an over-smoothed
-target. This was a premature cross-distribution snapshot; it is superseded by the staged dives that
-explore each distribution's inner ablation deeply (Sec.~\ref{sec:stageA}).
-
-\subsection{Stage A --- single Gaussian, inner ablation}
-\label{sec:stageA}
-
-We now treat distribution complexity as the outer progression and the ablation axes as the inner
-deep-dive, beginning with the simplest target $N(0,1)$. Each knob is varied off the naive baseline
-(width $16$, lr $10^{-2}$, $2000$ epochs, Silverman $h$, $n=2000$, unconstrained), training on the
-data points only, scored on a fixed grid $[-6,6]$. The Parzen ceiling is $\KS=0.0196$.
+We take the simplest possible target --- a standard bell curve --- and vary each knob in turn off the
+naive baseline, with no multi-peak structure to confuse the picture. The kernel ceiling here is a CDF
+gap of $0.020$.
 
 \begin{table}[h]
   \centering
-  \caption{Stage A inner ablation on $N(0,1)$. One knob varied per block; $\KS$ against the truth,
-  recovered pdf mass. Bold marks the best in each block; the Parzen ceiling is $\KS=0.0196$.}
+  \caption{Single Gaussian: CDF gap (smaller is better) as each knob varies; the kernel ceiling is
+  $0.020$. ``Recovered mass'' should be $1$. One knob varies per block.}
   \small
-  \begin{tabular}{llr r @{\hskip 2em} llr r}
+  \begin{tabular}{llcc}
     \toprule
-    \multicolumn{4}{c}{} & \multicolumn{4}{c}{} \\[-1.8ex]
-    \multicolumn{2}{l}{E1 capacity} & $\KS$ & mass & \multicolumn{2}{l}{E2 optimisation} & $\KS$ & mass \\
+    Knob & Setting & CDF gap & Recovered mass \\
     \midrule
-    width & 16          & 0.0319 & 0.993 & lr     & $10^{-2}$ & 0.0319 & 0.993 \\
-    width & 64          & 0.0273 & 0.998 & lr     & $3\!\cdot\!10^{-2}$ & 0.0290 & 0.997 \\
-    width & 128         & 0.0263 & 0.998 & lr     & $\mathbf{10^{-1}}$ & \textbf{0.0193} & 0.997 \\
-    depth & 2 (32,32)   & \textbf{0.0208} & 0.995 & epochs & 5000 & 0.0210 & 0.998 \\
-    depth & 3 (32,32,32)& 0.0421 & 0.988 & epochs & \textbf{10000} & \textbf{0.0197} & 0.999 \\
+    Network size (width)   & $16$           & 0.032 & 0.99 \\
+                           & $128$          & 0.026 & 1.00 \\
+                           & two layers, $32{+}32$ & \textbf{0.021} & 0.99 \\
+                           & three layers   & 0.042 & 0.99 \\
     \midrule
-    \multicolumn{2}{l}{E3 bandwidth} & $\KS$ & mass & \multicolumn{2}{l}{E4 / E5} & $\KS$ & mass \\
+    Learning rate          & $0.001$        & 0.037 & 0.98 \\
+                           & $0.01$         & 0.032 & 0.99 \\
+                           & $\mathbf{0.1}$ & \textbf{0.019} & 1.00 \\
     \midrule
-    scale & $0.3\times$ & 0.0261 & 0.994 & $n$       & 8000     & 0.0249 & 0.993 \\
-    scale & $1.0\times$ & 0.0319 & 0.993 & $n$       & 2000     & 0.0319 & 0.993 \\
-    scale & $1.5\times$ & 0.0409 & 0.991 & soft     & any $\lambda$ & 0.0319 & 0.993 \\
-    adaptive &          & \textbf{0.0256} & 0.993 & sill     & ---      & 0.0774 & 0.884 \\
+    Training length        & $2000$ steps   & 0.032 & 0.99 \\
+                           & $\mathbf{10000}$ steps & \textbf{0.020} & 1.00 \\
+    \midrule
+    Bandwidth              & $0.3\times$ Silverman & 0.026 & 0.99 \\
+                           & Silverman             & 0.032 & 0.99 \\
+                           & $1.5\times$ Silverman & 0.041 & 0.99 \\
+                           & adaptive              & \textbf{0.026} & 0.99 \\
+    \midrule
+    Monotonicity           & none / penalty (identical) & 0.032 & 0.99 \\
+                           & constrained network        & 0.077 & 0.88 \\
     \bottomrule
   \end{tabular}
+  \label{tab:gauss}
 \end{table}
+
+The story (Table~\ref{tab:gauss}, Figure~\ref{fig:gauss}):
+\begin{itemize}
+  \item \textbf{The naive baseline was simply under-trained.} Raising the learning rate to $0.1$, or
+  training for $10000$ steps, each bring the network down to the kernel ceiling. Optimisation, not
+  network size, was the limiting factor.
+  \item \textbf{Network size has diminishing returns.} A wider single layer helps a little; a
+  two-layer network is best; a three-layer network is actually worse, because it is harder to train in
+  the same budget.
+  \item \textbf{Bandwidth barely matters here.} For a single bell curve, Silverman is already close to
+  ideal; a slightly narrower or adaptive bandwidth is marginally better, over-smoothing is worse.
+  \item \textbf{Monotonicity costs nothing to ask for.} The unconstrained network never produces a
+  decreasing CDF, so the penalty never activates (the ``none'' and ``penalty'' rows are identical).
+  Forcing monotonicity by construction, by contrast, noticeably hurts accuracy and loses mass on this
+  small network --- it is an unnecessary handicap on an easy problem.
+\end{itemize}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{stage_a_single_gaussian.png}
-  \caption{Stage A inner ablation on $N(0,1)$: $\KS$ versus each knob. Gray dashed line is the Parzen
-  target ceiling.}
+  \caption{Single-Gaussian study: CDF gap versus each knob. Gray dashed line is the kernel ceiling.
+  Optimisation (learning rate, training length) moves the network down to the ceiling; the other
+  knobs move it little.}
+  \label{fig:gauss}
 \end{figure}
 
-\paragraph{Findings.} (i) The naive baseline is \emph{under-trained}; optimisation is the dominant
-lever --- $\mathrm{lr}=0.1$ or $10^4$ epochs each reach the Parzen ceiling. (ii) Capacity helps with
-diminishing returns; a depth-2 net is best, while depth-3 is harder to train at the same budget.
-(iii) For a unimodal target the bandwidth is a minor lever (slightly finer / adaptive is best,
-over-smoothing worst); its effect should grow on multimodal targets. (iv) Sample count gives a
-modest, noisy gain. (v) Monotonicity is not binding (the soft penalty is inactive at every
-$\lambda$); Sill is a pure accuracy/mass cost. The unconstrained sigmoidal MLP can match its Parzen
-target on $N(0,1)$; whether this survives a multimodal target is the Stage~B question.
+\subsection{Two simple mixtures}
 
-\subsection{Stage B --- simple mixtures, inner ablation}
-\label{sec:stageB}
+We now move to two two-peak distributions --- one symmetric, one lopsided --- carrying the lesson from
+the single Gaussian (train properly: width $32$, learning rate $0.1$, $5000$ steps). The kernel
+ceilings are CDF gaps of $0.048$ (symmetric) and $0.027$ (lopsided).
 
-We repeat the inner ablation on two simple bimodals --- $M_1 = 0.5\,N(-2,0.7)+0.5\,N(2,0.7)$ and
-$M_2 = 0.65\,N(0,1)+0.35\,N(3,0.6)$ --- at the improved baseline carried from Stage~A (width $32$,
-$\mathrm{lr}=0.1$, $5000$ epochs), with the sample-count axis averaged over three seeds.
+The dominant result is the bandwidth (Table~\ref{tab:bw}): switching from Silverman to a
+cross-validated or adaptive bandwidth \emph{roughly halves} the CDF gap on both mixtures, while
+over-smoothing makes it worse. Every other knob is comparatively flat:
+\begin{itemize}
+  \item Network size plateaus early --- width $8$ is already enough --- so there is no under-fitting
+  once training is adequate.
+  \item A learning rate of $0.001$ under-trains badly, but anything from $0.01$ upward reaches the
+  ceiling. One caution: a learning rate of $0.1$ \emph{diverged} on the largest network (width $128$):
+  its output collapsed, mass went to $0$. The safe rate is about $0.03$.
+  \item Monotonicity is still never an issue --- zero violations --- and the constrained network is now
+  roughly on par with the others (the handicap we saw on the tiny single-Gaussian network has faded at
+  this larger size).
+\end{itemize}
 
 \begin{table}[h]
   \centering
-  \caption{Stage B, E3 bandwidth axis: $\KS$ against the truth as the bandwidth varies. Truth-free
-  CV / adaptive selection roughly halves the error versus Silverman ($1.0\times$). Parzen ceilings at
-  Silverman: $M_1$ $0.0477$, $M_2$ $0.0270$.}
-  \begin{tabular}{lrr}
+  \caption{Two mixtures: CDF gap as the bandwidth rule changes (other settings fixed). A
+  cross-validated or adaptive bandwidth roughly halves the gap versus Silverman. Kernel ceilings at
+  Silverman: $0.048$ and $0.027$.}
+  \begin{tabular}{lcc}
     \toprule
-    bandwidth & $M_1$ $\KS$ & $M_2$ $\KS$ \\
+    Bandwidth rule & Symmetric mixture & Lopsided mixture \\
     \midrule
-    $0.3\times$ Silverman & 0.0199 & 0.0115 \\
-    $1.0\times$ (Silverman) & 0.0495 & 0.0267 \\
-    $1.5\times$ (over-smoothed) & 0.0687 & 0.0453 \\
-    variance-matched & 0.0258 & 0.0157 \\
-    likelihood-CV & 0.0195 & 0.0121 \\
-    LSCV & 0.0195 & 0.0125 \\
-    \textbf{adaptive (Abramson)} & \textbf{0.0185} & \textbf{0.0121} \\
+    $0.3\times$ Silverman (sharper)     & 0.020 & 0.012 \\
+    Silverman (default)                 & 0.050 & 0.027 \\
+    $1.5\times$ Silverman (over-smooth) & 0.069 & 0.045 \\
+    variance-matched                    & 0.026 & 0.016 \\
+    cross-validation (likelihood)       & 0.020 & 0.012 \\
+    cross-validation (least-squares)    & 0.020 & 0.013 \\
+    \textbf{adaptive (per-point)}       & \textbf{0.019} & \textbf{0.012} \\
     \bottomrule
   \end{tabular}
+  \label{tab:bw}
 \end{table}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.49\textwidth]{stage_b_symmetric_bimodal.png}\hfill
   \includegraphics[width=0.49\textwidth]{stage_b_asymmetric_bimodal.png}
-  \caption{Stage B inner ablation: $M_1$ (left), $M_2$ (right). The bandwidth panel (bottom-left)
-  shows the dominant downward trend toward finer $h$; capacity and monotonicity panels are flat. The
-  $\mathrm{width}=128$ run diverged at $\mathrm{lr}=0.1$ (annotated, excluded from the line).}
+  \caption{The two two-peak mixtures (symmetric left, lopsided right). The bandwidth panel
+  (bottom-left of each) slopes clearly downward toward sharper bandwidths; the network-size,
+  learning-rate-plateau and monotonicity panels are flat. ``Diverged'' marks the width-$128$ run that
+  blew up at learning rate $0.1$.}
+  \label{fig:mixtures}
 \end{figure}
 
-\paragraph{Findings.} (i) \textbf{Bandwidth is the dominant lever} on mixtures: CV / adaptive
-selectors halve $\KS$ versus Silverman, and the gain is truth-free. (ii) The network is a
-\emph{faithful regressor} --- its $\KS$ tracks the Parzen $\KS$ across both $n$ and $h$, so the
-accuracy bottleneck is the target, not the net. (iii) Capacity plateaus early (width $\geq 8$
-suffices); the Stage~A under-fit was an optimisation, not a capacity, issue. (iv) $\mathrm{lr}=0.1$
-diverges at width $128$ (KS $1.0$, mass $0$): the safe rate is $\approx 0.03$. (v) Monotonicity is
-still not binding (zero violations; the soft penalty inactive; Sill now competitive). Net: through
-simple mixtures the regressor saturates its target, and the highest-leverage knob within the
-constraints is truth-free bandwidth selection.
+\section{What we learned}
 
-\section{Planned experiments}
+Two findings stand out, and they reinforce each other.
 
-\begin{itemize}
-  \item \textbf{E1 Capacity:} hidden width and depth.
-  \item \textbf{E2 Optimization:} learning rate and epochs.
-  \item \textbf{E3 Bandwidth / target quality:} Silverman $\to$ variance-matched $\to$
-  cross-validation $\to$ adaptive (variable window).
-  \item \textbf{E4 Sample count:} $n$.
-  \item \textbf{E5 Monotonicity strategy:} soft-$\lambda$ vs Sill vs downstream rectification; pdf
-  mass renormalisation.
-  \item \textbf{E6} Interactions and best-of-axes pipeline; \textbf{E7} pdf-recovery refinements;
-  later, multivariate / copula approaches.
-\end{itemize}
+\paragraph{The network is a faithful copy of the kernel estimate.} On the two mixtures, the network's
+CDF gap matches the kernel estimate's gap almost exactly --- as the sample count changes and as the
+bandwidth changes, the two move together. Given adequate (but not over-aggressive) training, the
+network reaches the kernel ceiling and stops there. It does not, on its own, beat the estimate it is
+trained to copy.
+
+\paragraph{So the real accuracy lever is the bandwidth, and it is data-driven.} Because the network
+faithfully transmits whatever target it is given, the way to a better answer is a better target ---
+and a cross-validated or adaptive bandwidth, chosen from the samples alone, roughly halves the error
+over the default. Network size and the monotonicity machinery are, for these smooth distributions,
+second-order.
+
+\paragraph{An honest caveat, and a hint.} If the network only ever matches the kernel estimate, one
+should ask what it adds over simply using the kernel estimate directly. There is one encouraging
+hint: at small sample sizes, where the kernel estimate is noisiest, the network's gap is consistently
+a touch \emph{smaller} than the kernel estimate's --- its built-in smoothness appears to denoise the
+target slightly. We have not yet tried to amplify this deliberately. Doing so is the most promising
+next direction (Section~\ref{sec:next}), and is more valuable than simply running more distributions.
+
+\section{Where next}
+\label{sec:next}
+
+The experiments so far establish a solid, well-understood baseline but leave the central
+value question open: \emph{can the network be made to surpass the kernel estimate, rather than merely
+copy it?} The candidate techniques, all compatible with the strict training rule, are: regularising
+the network toward smoothness so it fits the underlying trend rather than the finite-sample noise
+(turning the faint denoising hint into a real gain); anchoring the network's boundary behaviour so the
+density integrates exactly to one (it currently loses a few percent of its mass); and averaging
+several networks to reduce variance. The remaining, sharper distributions (a three-peak mixture and a
+narrow spike inside a broad mode) are also still to be studied, and are where network capacity and the
+monotonicity constraint may finally start to matter.
+
+\paragraph{Reproducibility.} Every figure and number above is regenerated by the scripts in
+\texttt{scripts/experiments/} (\texttt{e0\_naive\_baseline.py},
+\texttt{stage\_a\_single\_gaussian.py}, \texttt{stage\_b\_simple\_mixtures.py}); a fuller running log,
+including the exact per-setting tables, lives in \texttt{docs/experiments.md}.
 
 \end{document}
