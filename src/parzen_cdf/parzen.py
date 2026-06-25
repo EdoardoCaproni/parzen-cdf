@@ -19,6 +19,9 @@ from __future__ import annotations
 import numpy as np
 from scipy.special import expit
 
+# ``np.trapezoid`` is the NumPy >= 2.0 name for ``np.trapz`` (still present, deprecated, in 2.x).
+_trapezoid = getattr(np, "trapezoid", np.trapz)
+
 # Standard-logistic spread, used to variance-match the bandwidth to a Gaussian kernel.
 LOGISTIC_KERNEL_STD = float(np.sqrt(np.pi**2 / 3))      # ~= 1.8138
 VARIANCE_MATCH_SCALE = 1.0 / LOGISTIC_KERNEL_STD        # = sqrt(3)/pi ~= 0.5513
@@ -144,7 +147,7 @@ def lscv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None = None,
     best_h, best_score = float(candidates[0]), np.inf
     for h in candidates:
         f = parzen_pdf(grid, samples, h)
-        term1 = np.trapezoid(f**2, grid)
+        term1 = _trapezoid(f**2, grid)
         term2 = 2.0 * _loo_density_at_samples(samples, h).mean()
         score = term1 - term2
         if score < best_score:

@@ -1,4 +1,4 @@
-"""Scoring estimates against ground truth, and plotting helpers.
+"""Scoring estimates against ground truth.
 
 Because the data is synthetic with a known pdf/CDF, every estimate is comparable to the truth.
 Report these consistently for both the Parzen estimate and the neural estimate.
@@ -7,6 +7,9 @@ Report these consistently for both the Parzen estimate and the neural estimate.
 from __future__ import annotations
 
 import numpy as np
+
+# ``np.trapezoid`` is the NumPy >= 2.0 name for ``np.trapz`` (still present, deprecated, in 2.x).
+_trapezoid = getattr(np, "trapezoid", np.trapz)
 
 
 def ks_distance(cdf_true: np.ndarray, cdf_est: np.ndarray) -> float:
@@ -21,7 +24,7 @@ def mse(true: np.ndarray, est: np.ndarray) -> float:
 
 def integrates_to_one(pdf_values: np.ndarray, grid: np.ndarray) -> float:
     """Numerically integrate a pdf over ``grid`` (should be ~1). Useful as a sanity check."""
-    return float(np.trapezoid(np.asarray(pdf_values), np.asarray(grid)))
+    return float(_trapezoid(np.asarray(pdf_values), np.asarray(grid)))
 
 
 def monotonicity_violation_fraction(cdf_on_grid: np.ndarray) -> float:

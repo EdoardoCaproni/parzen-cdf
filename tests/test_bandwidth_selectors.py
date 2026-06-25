@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from parzen_cdf import parzen
+from parzen_cdf import metrics, parzen
 
 
 @pytest.fixture
@@ -47,4 +47,4 @@ def test_parzen_pdf_accepts_per_sample_bandwidth(samples) -> None:
     grid = np.linspace(-8, 8, 4000)
     pdf = parzen.parzen_pdf(grid, samples, h)
     assert np.all(pdf >= 0)
-    assert abs(np.trapezoid(pdf, grid) - 1.0) < 1e-2
+    assert abs(metrics.integrates_to_one(pdf, grid) - 1.0) < 1e-2

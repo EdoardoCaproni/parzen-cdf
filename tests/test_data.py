@@ -7,7 +7,7 @@ pdf that integrates to 1, and a sampler whose empirical mean matches the analyti
 import numpy as np
 import pytest
 
-from parzen_cdf import data
+from parzen_cdf import data, metrics
 
 ALL_MIXTURES = [
     data.single_gaussian(),
@@ -30,7 +30,7 @@ def test_cdf_is_valid(mix: data.GaussianMixture1D) -> None:
 @pytest.mark.parametrize("mix", ALL_MIXTURES)
 def test_pdf_integrates_to_one(mix: data.GaussianMixture1D) -> None:
     grid = np.linspace(-20, 20, 8000)
-    area = np.trapezoid(mix.pdf(grid), grid)
+    area = metrics.integrates_to_one(mix.pdf(grid), grid)
     assert abs(area - 1.0) < 1e-4, f"pdf should integrate to ~1, got {area:.6f}"
 
 
