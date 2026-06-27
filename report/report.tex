@@ -192,8 +192,8 @@ Silverman pilot.
 
 The adaptive window size beats plain Silverman at every sample count (Table~\ref{tab:mix},
 Figures~\ref{fig:mixstrat} and \ref{fig:mixn}), modestly at low $n$ and more at high $n$ (symmetric at
-$n=20000$: $0.024$ to $0.0155$; asymmetric: $0.014$ to $0.0098$). So the estimator of choice for
-mixtures is the adaptive window.
+$n=20000$: $0.024$ to $0.0155$; asymmetric: $0.014$ to $0.0098$). So, on these two bimodals, the
+adaptive window looks like the estimator of choice. Part~III tests whether that holds more broadly.
 
 \begin{figure}[H]
   \centering
@@ -253,23 +253,76 @@ are blunt, and both sharpen toward the truth as $n$ grows
   \label{fig:mixprog_asym}
 \end{figure}
 
-One lever is held in reserve: the adaptive pilot here is the full Silverman window; a sharper pilot
-(variance-matched) or a cross-validation window would refine the estimate further at a fixed sample
-count, which is the natural next step if the under-2k accuracy needs to improve.
+The adaptive pilot used here is the full Silverman window. A sharper pilot (variance-matched) or a
+cross-validation window could refine the estimate further; we test these, and the other selectors, on
+a broad battery next.
 
 \clearpage
+\section{Part III: a battery of random mixtures}
+
+To check whether the bimodal conclusion generalises, we generate $10$ random Gaussian mixtures ($3$ to
+$6$ modes, varied means and widths) and test every truth-free window-size selector on all of them, at
+the two budgets. Cross-validation costs $O(n^2 \times \text{candidates})$, so it is run only at the
+under-2k budget (it is impractical at $n=20000$); the others are cheap. Figure~\ref{fig:gallery} shows
+the ten shapes.
+
+\begin{table}[H]
+  \centering
+  \caption{Mean CDF gap across the $10$ random mixtures, by selector and budget (lower is better).}
+  \label{tab:battery}
+  \begin{tabular}{lcc}
+    \toprule
+    Selector & under-2k ($n{=}1000$) & overall ($n{=}20000$) \\
+    \midrule
+    Silverman                  & 0.069 & 0.032 \\
+    variance-matched           & 0.044 & \textbf{0.015} \\
+    adaptive (Silverman pilot) & 0.061 & 0.021 \\
+    likelihood-CV              & 0.029 & impractical \\
+    \textbf{least-squares CV}  & \textbf{0.028} & impractical \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_random_gallery.png}
+  \caption{The ten random mixtures: true density (black) vs the adaptive Parzen estimate (blue) at
+  $n=20000$. The shapes vary widely, and the adaptive estimate still blunts the sharpest peaks.}
+  \label{fig:gallery}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_random_selectors.png}
+  \caption{Mean CDF gap per selector across the ten mixtures, at the two budgets (error bars over the
+  ten). Cross-validation is best at the small budget; variance-matched is the best practical choice at
+  the large one.}
+  \label{fig:battery}
+\end{figure}
+
+\paragraph{The battery overturns the bimodal conclusion.} Across ten varied shapes the adaptive
+window is no longer the winner: it is only middling (Table~\ref{tab:battery}), worse than
+variance-matched at both budgets. Instead, \textbf{cross-validation} (least-squares or likelihood) is
+the most accurate selector, about $0.028$ at the small budget, roughly $2.4$ times better than
+Silverman, because it searches directly for the window that fits the data, which pays off on complex
+multimodal shapes. Its cost makes it impractical at very large $n$, where the cheap
+\textbf{variance-matched} window (a fixed $\times 0.55$ shrink of Silverman) is the best practical
+choice ($0.015$). Silverman is consistently the weakest. The lesson is methodological as much as
+numerical: a conclusion drawn from two distributions did not survive ten.
+
 \section{Summary so far}
 
-On the single Gaussian, a Parzen Window with a data-driven Silverman window size estimates the CDF
-essentially exactly (gap about $0.02$ at $n=2000$, $0.008$ at $n=20000$). On the two mixtures, an
-adaptive window size is best, reaching a gap of about $0.01$ with abundant data and about $0.04$ to
-$0.06$ in the scarce-data budget. Throughout, the CDF is robust even at tiny sample counts because it
-is an integral; the density and the multimodal structure are what demand data. The next steps refine
-the mixture estimate further and then test the estimator on a battery of more complex distributions,
-before training a network to learn the consolidated CDF.
+A Parzen Window estimates the CDF well across all the cases we tried, and the CDF is robust even at
+tiny sample counts because it is an integral; the density and the multimodal structure are what demand
+data. The right \emph{window size} is data-driven and depends on the budget: on the broad battery,
+\textbf{cross-validation} is the most accurate where it is affordable (small samples), while the cheap
+\textbf{variance-matched} window is the best practical choice at large samples. The adaptive window,
+which looked best on two hand-picked bimodals, did not generalise. This consolidated estimator is what
+the next phase will use: a network trained to learn the resulting CDF, with the density recovered as
+its derivative.
 
-\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py} and
-\texttt{python scripts/parzen\_mixtures.py} regenerate every figure and number above; the running log
-is in \texttt{docs/study.md}.
+\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
+\texttt{scripts/parzen\_mixtures.py}, and \texttt{scripts/parzen\_random.py} regenerate every figure
+and number above; the running log is in \texttt{docs/study.md}.
 
 \end{document}
