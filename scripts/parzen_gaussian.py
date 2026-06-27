@@ -95,7 +95,7 @@ def silverman_check(win_silv):
 
 def sample_size_sweep(seeds=range(5)):
     """How the Silverman estimate improves with the number of samples (mean +/- std over seeds)."""
-    ns = [500, 1000, 2000, 5000, 10000, 20000]
+    ns = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
     grid = np.linspace(-6, 6, 1000)                 # coarser grid keeps memory modest at large n
     true_cdf = mix.cdf(grid)
     true_peak = float(mix.pdf(np.array([0.0]))[0])   # ~0.3989
@@ -126,7 +126,7 @@ def sample_size_sweep(seeds=range(5)):
 
 def sample_size_progression():
     """Progressive view: the Silverman estimate (pdf top row, CDF bottom row) at growing n."""
-    ns = [500, 1000, 2000, 5000, 10000, 20000]
+    ns = [50, 100, 200, 500, 2000, 20000]
     fig, axes = plt.subplots(2, len(ns), figsize=(19, 6), sharex=True)
     for j, n in enumerate(ns):
         samples = mix.sample(n, np.random.default_rng(SEED))

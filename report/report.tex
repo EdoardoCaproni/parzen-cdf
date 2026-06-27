@@ -1,0 +1,167 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\graphicspath{{../results/}}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
+
+\title{Estimating a CDF with a Parzen Window\\
+\large Part I --- the single Gaussian}
+\author{Didactic study}
+\date{\today}
+
+\newcommand{\Fhat}{\widehat{F}}
+\newcommand{\fhat}{\widehat{f}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We estimate the cumulative distribution function (CDF) of a known distribution from samples, using a
+\textbf{Parzen Window} estimator, and we read the density off as the derivative. Working from a
+\emph{known} distribution lets us score every estimate against the exact truth. This first part builds
+the estimator on the simplest case --- a single Gaussian --- one ingredient at a time: we choose the
+\textbf{window size}, verify the fit, and study how the estimate behaves with the number of samples.
+\end{abstract}
+
+\section{Setup and notation}
+
+We draw samples $x_1,\dots,x_n$ from a known distribution and estimate its CDF $F(x)=\Pr[X\le x]$ and
+its density $f=F'$. A \textbf{Parzen Window} estimator places one smooth window on each sample and
+averages them. We use a logistic window, chosen so that the \emph{integral} of the window is the
+logistic sigmoid $\sigma$; the estimated CDF is then the integral of the estimated density, available
+in closed form:
+\begin{equation}
+  \fhat(x)=\frac1n\sum_{i=1}^n \frac1h\,\sigma'\!\Big(\frac{x-x_i}{h}\Big),
+  \qquad
+  \Fhat(x)=\int_{-\infty}^x \fhat
+          =\frac1n\sum_{i=1}^n \sigma\!\Big(\frac{x-x_i}{h}\Big).
+  \label{eq:parzen}
+\end{equation}
+The parameter $h>0$ is the \textbf{window size}: small $h$ gives a sharp, noisy estimate, large $h$ a
+smooth, blurry one. We score an estimate by the \textbf{CDF gap} --- the Kolmogorov--Smirnov distance
+$\max_x|F(x)-\Fhat(x)|$, the largest vertical gap between the estimated and true CDF (smaller is
+better) --- and we also track the recovered density's peak height as a finer check.
+
+\section{The single Gaussian $N(0,1)$}
+
+\subsection{Choosing the window size}
+
+We start as simply as possible ($n=2000$) and add one ingredient at a time, each motivated by the
+previous shortcoming (Table~\ref{tab:window}, Figure~\ref{fig:window}).
+
+\begin{table}[h]
+  \centering
+  \caption{Window-size strategies on $N(0,1)$, $n=2000$.}
+  \label{tab:window}
+  \begin{tabular}{llc}
+    \toprule
+    Strategy & Window size & CDF gap \\
+    \midrule
+    fixed, trivial value      & $1.0$            & $0.157$ \\
+    adaptive (per-point), pilot $=1.0$ & mean $1.0$ & $0.151$ \\
+    \textbf{Silverman (data-driven)}   & $0.196$    & $\mathbf{0.020}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{A fixed window of size $1.0$ over-smooths.} The estimated density is far too wide and
+  low (peak $0.21$ vs the true $0.40$): the logistic window of ``size one'' is itself broad. CDF gap
+  $0.157$.
+  \item \textbf{Making the window adaptive does not rescue a too-large pilot.} Per-point window sizes
+  built from the fixed pilot barely shrink in the dense centre and only widen in the tails (they came
+  out at mean $1.0$, range $0.93$--$1.91$), so the over-smoothing remains. CDF gap $0.151$.
+  \item \textbf{A data-driven global window size (Silverman) solves it.} Window size $0.196$ brings
+  the gap to $0.020$; estimate and truth coincide. This is our estimator for the single Gaussian.
+\end{itemize}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_gaussian_window_strategies.png}
+  \caption{Window-size strategies. The fixed and adaptive windows over-smooth (red, orange); the
+  data-driven Silverman window (green) matches the truth (black) for both density and CDF.}
+  \label{fig:window}
+\end{figure}
+
+\subsection{Visual check}
+
+Figure~\ref{fig:check} inspects the chosen (Silverman) estimate. The CDF curves are visually
+indistinguishable; the error $|\Fhat-F|$ peaks at $0.020$ near the shoulders. The only perceptible
+imperfection is the density peak, estimated slightly low ($0.37$ vs $0.40$) --- a residual of
+smoothing that the next subsection resolves.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_gaussian_silverman_check.png}
+  \caption{Visual check of the Silverman estimate ($n=2000$): density vs samples (left), CDF vs truth
+  (centre, overlapping), and the CDF error with its maximum (the CDF gap) marked (right).}
+  \label{fig:check}
+\end{figure}
+
+\subsection{How many samples do we need?}
+
+We sweep the sample count (Silverman window, averaged over $5$ seeds; Table~\ref{tab:n},
+Figures~\ref{fig:nsweep}--\ref{fig:nprog}). Two things stand out.
+
+\begin{table}[h]
+  \centering
+  \caption{Effect of the sample count on $N(0,1)$ (Silverman window, mean over $5$ seeds).}
+  \label{tab:n}
+  \begin{tabular}{rccc}
+    \toprule
+    $n$ & window size & CDF gap & density peak (true $0.399$) \\
+    \midrule
+    50     & 0.397 & 0.066 & 0.324 \\
+    100    & 0.332 & 0.058 & 0.361 \\
+    200    & 0.312 & 0.051 & 0.349 \\
+    500    & 0.256 & 0.034 & 0.364 \\
+    2000   & 0.197 & 0.019 & 0.368 \\
+    20000  & 0.124 & 0.008 & 0.390 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{itemize}
+  \item \textbf{The CDF is easy, even with very few samples.} At $n=50$ the CDF gap is already only
+  $\approx 0.066$, and by $n=500$ it is $0.034$. The reason is structural: the CDF is the
+  \emph{integral} of the density (Eq.~\ref{eq:parzen}), and integration averages out the
+  finite-sample noise --- so the CDF estimate is far more forgiving than the density.
+  \item \textbf{The density (peak) is the demanding quantity.} It is what needs samples: the peak
+  climbs from $0.32$ ($n=50$) to $0.39$ ($n=20000$), closing the gap to the true $0.399$ only with
+  abundant data. Convergence is slow, the expected Silverman rate (window size $\propto n^{-1/5}$).
+\end{itemize}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_gaussian_sample_size.png}
+  \caption{CDF gap (left) and density peak (right) versus the number of samples; error bars over
+  $5$ seeds. Both improve with $n$; the density peak approaches the true $0.399$.}
+  \label{fig:nsweep}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_gaussian_sample_size_progression.png}
+  \caption{The estimate sharpening with more samples (black = truth, green = Silverman estimate).
+  Top row: density; bottom row: CDF. The CDF is already accurate at $n=50$; the density peak fills in
+  as $n$ grows.}
+  \label{fig:nprog}
+\end{figure}
+
+\section{Summary of Part I}
+
+On the single Gaussian, a Parzen Window with a data-driven \textbf{Silverman window size} estimates
+the CDF essentially exactly (gap $\approx 0.02$ at $n=2000$, $\approx 0.008$ at $n=20000$). The CDF is
+robust even at tiny sample counts because it is an integral; the density's peak is the quantity that
+demands data. The next part carries this estimator to harder targets --- mixtures of Gaussians.
+
+\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py} regenerates every figure and
+number above; the running log is in \texttt{docs/study.md}.
+
+\end{document}
