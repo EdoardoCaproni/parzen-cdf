@@ -33,9 +33,12 @@ Setup: 2000 samples, evaluation against the exact `N(0,1)`. Script:
 |---|---|---|---|
 | 1 | fixed = 1.0 (trivial symbolic value) | 0.157 | over-smoothed |
 | 2 | adaptive, per-point (pilot = 1.0) | 0.151 | barely helps |
-| 3 | **Silverman (data-driven, 0.196)** | **0.0196** | **matches the truth** |
+| 3 | **Silverman (data-driven, 0.196)** | **0.0196** | matches the truth |
+| 4 | more samples (Silverman, n 500→20k) | **0.008 @ n=20k** | **best; fixes the pdf peak** |
 
-![Phase A single Gaussian](../results/01_parzen_gaussian.png)
+![window-size strategies](../results/parzen_gaussian_window_strategies.png)
+![Silverman visual check](../results/parzen_gaussian_silverman_check.png)
+![sample-size sweep](../results/parzen_gaussian_sample_size.png)
 
 **What each step taught us.**
 
@@ -47,8 +50,12 @@ Setup: 2000 samples, evaluation against the exact `N(0,1)`. Script:
    core over-smoothing remained (gap 0.151). Lesson: an adaptive window size needs a *sensible global
    window* to adapt around.
 3. **A data-driven global window size (Silverman) solves it.** Window size 0.196 brings the gap to
-   0.0196 — the estimated pdf and CDF sit on top of the truth. This is our consolidated Parzen Window
-   estimator for the single Gaussian; the grid search over sample count was not needed.
+   0.0196 — the estimated pdf and CDF sit on top of the truth. The only residual imperfection is the
+   pdf peak, estimated a touch low (0.368 vs 0.399).
+4. **More samples improve it further and fix the pdf peak.** Sweeping `n` with Silverman (5 seeds):
+   the window shrinks (∝ n^(−1/5)), the CDF gap drops from 0.034 (n=500) to 0.008 (n=20000), and the
+   pdf peak climbs to 0.390 — closing the only visible gap. Convergence is slow (the expected
+   Silverman rate), so the practical lever is "as much data as available."
 
-**State of the art so far:** Silverman window size. Next: carry it to two Gaussian mixtures (Phase A,
-step 2).
+**State of the art (single Gaussian):** Parzen Window with **Silverman window size**; quality improves
+smoothly with the sample count. Next: carry it to two Gaussian mixtures (Phase A, step 2).
