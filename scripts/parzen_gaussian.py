@@ -94,32 +94,43 @@ def silverman_check(win_silv):
 
 
 def sample_size_sweep(seeds=range(5)):
-    """How the Silverman estimate improves with the number of samples (mean +/- std over seeds)."""
+    """CDF gap and pdf-peak vs sample count, for three window-size methods: the naive fixed window,
+    Silverman, and adaptive (pilot Silverman). Key contrast: a fixed (too-large) window does NOT
+    improve with more samples (it never shrinks), while the data-driven windows do. Mean over seeds.
+    """
     ns = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
     grid = np.linspace(-6, 6, 1000)                 # coarser grid keeps memory modest at large n
     true_cdf = mix.cdf(grid)
     true_peak = float(mix.pdf(np.array([0.0]))[0])   # ~0.3989
-    ks_mean, ks_std, peak_mean = [], [], []
-    print(f"\n  sample-size sweep (Silverman window, mean over {len(list(seeds))} seeds):")
-    print(f"  {'n':>7}{'window':>9}{'CDF gap':>10}{'pdf peak':>10}  (true peak {true_peak:.3f})")
+    methods = ["fixed 1.0", "Silverman", "adaptive"]
+    colors = {"fixed 1.0": "tab:red", "Silverman": "tab:green", "adaptive": "tab:blue"}
+    ks = {m: [] for m in methods}; ks_std = {m: [] for m in methods}; peak = {m: [] for m in methods}
+    print(f"\n  sample-size sweep (CDF gap, mean over {len(list(seeds))} seeds):")
+    print(f"  {'n':>7}" + "".join(f"{m:>12}" for m in methods))
     for n in ns:
-        kss, peaks, wins = [], [], []
+        per = {m: [] for m in methods}; perp = {m: [] for m in methods}
         for s in seeds:
             samples = mix.sample(n, np.random.default_rng(s))
             h = parzen.silverman_bandwidth(samples)
-            kss.append(metrics.ks_distance(true_cdf, parzen.parzen_cdf(grid, samples, h)))
-            peaks.append(float(parzen.parzen_pdf(np.array([0.0]), samples, h)[0]))
-            wins.append(h)
-        ks_mean.append(np.mean(kss)); ks_std.append(np.std(kss)); peak_mean.append(np.mean(peaks))
-        print(f"  {n:>7}{np.mean(wins):>9.3f}{np.mean(kss):>10.4f}{np.mean(peaks):>10.3f}")
+            wins = {"fixed 1.0": 1.0, "Silverman": h,
+                    "adaptive": parzen.adaptive_bandwidths(samples, pilot_h=h)}
+            for m, w in wins.items():
+                per[m].append(metrics.ks_distance(true_cdf, parzen.parzen_cdf(grid, samples, w)))
+                perp[m].append(float(parzen.parzen_pdf(np.array([0.0]), samples, w)[0]))
+        for m in methods:
+            ks[m].append(np.mean(per[m])); ks_std[m].append(np.std(per[m])); peak[m].append(np.mean(perp[m]))
+        print(f"  {n:>7}" + "".join(f"{np.mean(per[m]):>12.4f}" for m in methods))
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(13, 4.6))
-    a.errorbar(ns, ks_mean, yerr=ks_std, marker="o", capsize=3, color="tab:blue")
-    a.set_xscale("log"); a.set_title("CDF gap (KS) vs number of samples"); a.set_xlabel("n"); a.set_ylabel("CDF gap (KS)")
-    b.plot(ns, peak_mean, "o-", color="tab:green", label="estimated pdf peak")
+    for m in methods:
+        a.errorbar(ns, ks[m], yerr=ks_std[m], marker="o", capsize=3, color=colors[m], label=m)
+        b.plot(ns, peak[m], "o-", color=colors[m], label=m)
+    a.set_xscale("log"); a.set_title("CDF gap (KS) vs number of samples")
+    a.set_xlabel("n"); a.set_ylabel("CDF gap (KS)"); a.legend(fontsize=8)
     b.axhline(true_peak, ls="--", color="k", label=f"true peak {true_peak:.3f}")
-    b.set_xscale("log"); b.set_title("pdf peak height vs number of samples"); b.set_xlabel("n"); b.legend(fontsize=8)
-    fig.suptitle("Single Gaussian, Silverman window size: estimate improves with more samples")
+    b.set_xscale("log"); b.set_title("pdf peak height vs number of samples")
+    b.set_xlabel("n"); b.legend(fontsize=8)
+    fig.suptitle("Single Gaussian: fixed vs data-driven window sizes as the sample count grows")
     fig.tight_layout()
     _save(fig, "parzen_gaussian_sample_size.png")
 

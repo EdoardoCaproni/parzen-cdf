@@ -53,13 +53,26 @@ Setup: 2000 samples, evaluation against the exact `N(0,1)`. Script:
 3. **A data-driven global window size (Silverman) solves it.** Window size 0.196 brings the gap to
    0.0196 — the estimated pdf and CDF sit on top of the truth. The only residual imperfection is the
    pdf peak, estimated a touch low (0.368 vs 0.399).
-4. **More samples improve it further and fix the pdf peak.** Sweeping `n` with Silverman (5 seeds):
-   the window shrinks (∝ n^(−1/5)), the CDF gap drops from 0.034 (n=500) to 0.008 (n=20000), and the
-   pdf peak climbs to 0.390 — closing the only visible gap. Convergence is slow (the expected
-   Silverman rate), so the practical lever is "as much data as available."
+4. **Sample-size sweep, three methods (fixed 1.0 / Silverman / adaptive with a Silverman pilot;
+   5 seeds).** Two clear lessons:
+   - **A fixed window does not benefit from more samples** — it never shrinks, so its CDF gap stays
+     flat at ~0.16 and its pdf peak is stuck near 0.21 at every `n`. Only data-driven windows improve.
+   - **Adaptive (pilot Silverman) is the best at every `n`** and reaches the true pdf peak fastest:
 
-**State of the art (single Gaussian):** Parzen Window with **Silverman window size**; quality improves
-smoothly with the sample count. Next: carry it to two Gaussian mixtures (Phase A, step 2).
+     | n | fixed 1.0 | Silverman | adaptive |
+     |---|---|---|---|
+     | 50 | 0.165 | 0.066 | 0.056 |
+     | 500 | 0.162 | 0.034 | 0.026 |
+     | 2000 | 0.158 | 0.019 | **0.012** |
+     | 20000 | 0.157 | 0.008 | **0.005** |
+
+   Note the pilot: the adaptive in step 2 used a too-large pilot (1.0) and failed; with a Silverman
+   pilot it instead beats Silverman. So adaptivity is good *given a sensible pilot*.
+
+**State of the art (single Gaussian):** Parzen Window with an **adaptive window size (Silverman
+pilot)** is best at every budget (Silverman alone is already excellent on this unimodal case; adaptive
+adds a further ~35% on the CDF gap). Quality improves smoothly with the sample count; a fixed window
+does not. This unifies with the mixtures, where adaptive is also the winner. Next: Phase A, step 2.
 
 ---
 
