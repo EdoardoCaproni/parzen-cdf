@@ -124,6 +124,27 @@ def sample_size_sweep(seeds=range(5)):
     _save(fig, "parzen_gaussian_sample_size.png")
 
 
+def sample_size_progression():
+    """Progressive view: the Silverman estimate (pdf top row, CDF bottom row) at growing n."""
+    ns = [500, 1000, 2000, 5000, 10000, 20000]
+    fig, axes = plt.subplots(2, len(ns), figsize=(19, 6), sharex=True)
+    for j, n in enumerate(ns):
+        samples = mix.sample(n, np.random.default_rng(SEED))
+        h = parzen.silverman_bandwidth(samples)
+        est_pdf, est_cdf, ks = estimate(samples, h)
+        axes[0, j].plot(GRID, TRUE_PDF, "k-", lw=1.4)
+        axes[0, j].plot(GRID, est_pdf, "-", color="tab:green", lw=1.4)
+        axes[0, j].set_title(f"n={n}\nwindow {h:.3f} · KS {ks:.4f}", fontsize=9)
+        axes[1, j].plot(GRID, TRUE_CDF, "k-", lw=1.4)
+        axes[1, j].plot(GRID, est_cdf, "-", color="tab:green", lw=1.4)
+    axes[0, 0].set_ylabel("pdf"); axes[1, 0].set_ylabel("CDF")
+    axes[0, -1].legend(["true", "Parzen (Silverman)"], fontsize=7)
+    fig.suptitle("Single Gaussian: the Parzen Window estimate sharpens with more samples "
+                 "(black = truth, green = Silverman estimate)")
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    _save(fig, "parzen_gaussian_sample_size_progression.png")
+
+
 def _save(fig, name):
     path = os.path.join(RESULTS_DIR, name)
     fig.savefig(path, dpi=120); plt.close(fig)
@@ -135,6 +156,7 @@ def main():
     win_silv = window_strategies()
     silverman_check(win_silv)
     sample_size_sweep()
+    sample_size_progression()
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ Setup: 2000 samples, evaluation against the exact `N(0,1)`. Script:
 ![window-size strategies](../results/parzen_gaussian_window_strategies.png)
 ![Silverman visual check](../results/parzen_gaussian_silverman_check.png)
 ![sample-size sweep](../results/parzen_gaussian_sample_size.png)
+![sample-size progression](../results/parzen_gaussian_sample_size_progression.png)
 
 **What each step taught us.**
 
