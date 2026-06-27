@@ -4,6 +4,7 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{multirow}
 \usepackage{xcolor}
 \usepackage{hyperref}
 
@@ -11,7 +12,7 @@
 \hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
 
 \title{Estimating a CDF with a Parzen Window\\
-\large Part I --- the single Gaussian}
+\large Univariate study: the single Gaussian and Gaussian mixtures}
 \author{Didactic study}
 \date{\today}
 
@@ -24,9 +25,11 @@
 \begin{abstract}
 We estimate the cumulative distribution function (CDF) of a known distribution from samples, using a
 \textbf{Parzen Window} estimator, and we read the density off as the derivative. Working from a
-\emph{known} distribution lets us score every estimate against the exact truth. This first part builds
-the estimator on the simplest case --- a single Gaussian --- one ingredient at a time: we choose the
+\emph{known} distribution lets us score every estimate against the exact truth. Part~I builds the
+estimator on the simplest case (a single Gaussian), one ingredient at a time: we choose the
 \textbf{window size}, verify the fit, and study how the estimate behaves with the number of samples.
+Part~II carries it to two Gaussian mixtures, tracking two sample budgets (a high-data setting and a
+scarce-data one under 2000 samples).
 \end{abstract}
 
 \section{Setup and notation}
@@ -43,12 +46,12 @@ in closed form:
           =\frac1n\sum_{i=1}^n \sigma\!\Big(\frac{x-x_i}{h}\Big).
   \label{eq:parzen}
 \end{equation}
-The parameter $h>0$ is the \textbf{window size}: small $h$ gives a sharp, noisy estimate, large $h$ a
-smooth, blurry one. We score an estimate by the \textbf{CDF gap} --- the Kolmogorov--Smirnov distance
-$\max_x|F(x)-\Fhat(x)|$, the largest vertical gap between the estimated and true CDF (smaller is
-better) --- and we also track the recovered density's peak height as a finer check.
+The parameter $h>0$ is the \textbf{window size}: a small $h$ gives a sharp, noisy estimate, a large
+$h$ a smooth, blurry one. We score an estimate by the \textbf{CDF gap}, the Kolmogorov--Smirnov
+distance $\max_x|F(x)-\Fhat(x)|$ (the largest vertical gap between the estimated and true CDF, smaller
+is better), and we also track the recovered density's peak height as a finer check.
 
-\section{The single Gaussian $N(0,1)$}
+\section{Part I: the single Gaussian \texorpdfstring{$N(0,1)$}{N(0,1)}}
 
 \subsection{Choosing the window size}
 
@@ -76,7 +79,7 @@ previous shortcoming (Table~\ref{tab:window}, Figure~\ref{fig:window}).
   $0.157$.
   \item \textbf{Making the window adaptive does not rescue a too-large pilot.} Per-point window sizes
   built from the fixed pilot barely shrink in the dense centre and only widen in the tails (they came
-  out at mean $1.0$, range $0.93$--$1.91$), so the over-smoothing remains. CDF gap $0.151$.
+  out at mean $1.0$, spanning $0.93$ to $1.91$), so the over-smoothing remains. CDF gap $0.151$.
   \item \textbf{A data-driven global window size (Silverman) solves it.} Window size $0.196$ brings
   the gap to $0.020$; estimate and truth coincide. This is our estimator for the single Gaussian.
 \end{itemize}
@@ -93,8 +96,8 @@ previous shortcoming (Table~\ref{tab:window}, Figure~\ref{fig:window}).
 
 Figure~\ref{fig:check} inspects the chosen (Silverman) estimate. The CDF curves are visually
 indistinguishable; the error $|\Fhat-F|$ peaks at $0.020$ near the shoulders. The only perceptible
-imperfection is the density peak, estimated slightly low ($0.37$ vs $0.40$) --- a residual of
-smoothing that the next subsection resolves.
+imperfection is the density peak, estimated slightly low ($0.37$ vs $0.40$), a residual of smoothing
+that the next subsection resolves.
 
 \begin{figure}[h]
   \centering
@@ -107,7 +110,7 @@ smoothing that the next subsection resolves.
 \subsection{How many samples do we need?}
 
 We sweep the sample count (Silverman window, averaged over $5$ seeds; Table~\ref{tab:n},
-Figures~\ref{fig:nsweep}--\ref{fig:nprog}). Two things stand out.
+Figures~\ref{fig:nsweep} and \ref{fig:nprog}). Two things stand out.
 
 \begin{table}[h]
   \centering
@@ -129,9 +132,9 @@ Figures~\ref{fig:nsweep}--\ref{fig:nprog}). Two things stand out.
 
 \begin{itemize}
   \item \textbf{The CDF is easy, even with very few samples.} At $n=50$ the CDF gap is already only
-  $\approx 0.066$, and by $n=500$ it is $0.034$. The reason is structural: the CDF is the
-  \emph{integral} of the density (Eq.~\ref{eq:parzen}), and integration averages out the
-  finite-sample noise --- so the CDF estimate is far more forgiving than the density.
+  about $0.066$, and by $n=500$ it is $0.034$. The reason is structural: the CDF is the \emph{integral}
+  of the density (Eq.~\ref{eq:parzen}), and integration averages out the finite-sample noise, so the
+  CDF estimate is far more forgiving than the density.
   \item \textbf{The density (peak) is the demanding quantity.} It is what needs samples: the peak
   climbs from $0.32$ ($n=50$) to $0.39$ ($n=20000$), closing the gap to the true $0.399$ only with
   abundant data. Convergence is slow, the expected Silverman rate (window size $\propto n^{-1/5}$).
@@ -148,20 +151,98 @@ Figures~\ref{fig:nsweep}--\ref{fig:nprog}). Two things stand out.
 \begin{figure}[h]
   \centering
   \includegraphics[width=\textwidth]{parzen_gaussian_sample_size_progression.png}
-  \caption{The estimate sharpening with more samples (black = truth, green = Silverman estimate).
-  Top row: density; bottom row: CDF. The CDF is already accurate at $n=50$; the density peak fills in
-  as $n$ grows.}
+  \caption{The estimate sharpening with more samples (black = truth, green = Silverman estimate). Top
+  row: density; bottom row: CDF. The CDF is already accurate at $n=50$; the density peak fills in as
+  $n$ grows.}
   \label{fig:nprog}
 \end{figure}
 
-\section{Summary of Part I}
+\section{Part II: Gaussian mixtures}
 
-On the single Gaussian, a Parzen Window with a data-driven \textbf{Silverman window size} estimates
-the CDF essentially exactly (gap $\approx 0.02$ at $n=2000$, $\approx 0.008$ at $n=20000$). The CDF is
-robust even at tiny sample counts because it is an integral; the density's peak is the quantity that
-demands data. The next part carries this estimator to harder targets --- mixtures of Gaussians.
+We now move to two harder targets, a symmetric and an asymmetric two-mode mixture. From here we carry
+\textbf{two operating points}: a high-data setting (\emph{best overall}, $n=20000$) and a scarce-data
+budget (\emph{best under 2k}, $n=1000$, with $n=500$ also reported). Silverman tends to over-smooth the
+valley between the modes, so we compare it against an \textbf{adaptive} (per-point) window size with a
+Silverman pilot.
 
-\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py} regenerates every figure and
-number above; the running log is in \texttt{docs/study.md}.
+\subsection{Silverman vs adaptive window size}
+
+\begin{table}[h]
+  \centering
+  \caption{CDF gap on the two mixtures, mean over $3$ seeds. The adaptive window beats Silverman at
+  every sample count; the two carried budgets are in bold.}
+  \label{tab:mix}
+  \begin{tabular}{llccccc}
+    \toprule
+    Mixture & Strategy & $n{=}500$ & $\mathbf{n{=}1000}$ & $n{=}2000$ & $\mathbf{n{=}20000}$ \\
+    \midrule
+    \multirow{2}{*}{symmetric}  & Silverman & 0.079 & 0.065 & 0.048 & 0.024 \\
+                                & adaptive  & 0.076 & \textbf{0.060} & 0.041 & \textbf{0.0155} \\
+    \multirow{2}{*}{asymmetric} & Silverman & 0.048 & 0.043 & 0.027 & 0.014 \\
+                                & adaptive  & 0.042 & \textbf{0.039} & 0.024 & \textbf{0.0098} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The adaptive window size beats plain Silverman at every sample count (Table~\ref{tab:mix},
+Figures~\ref{fig:mixstrat} and \ref{fig:mixn}), modestly at low $n$ and more at high $n$ (symmetric at
+$n=20000$: $0.024$ to $0.0155$; asymmetric: $0.014$ to $0.0098$). So the estimator of choice for
+mixtures is the adaptive window.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_symmetric_bimodal_window_strategies.png}
+  \caption{Symmetric mixture ($n=2000$): Silverman (red, dashed) over-smooths the valley between the
+  modes; the adaptive window (blue) is sharper and closer to the truth (black).}
+  \label{fig:mixstrat}
+\end{figure}
+
+\subsection{The two sample budgets}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.7\textwidth]{parzen_symmetric_bimodal_sample_size.png}
+  \caption{Symmetric mixture: CDF gap vs the number of samples, for both window strategies; the two
+  carried budgets are marked. The adaptive curve (blue) stays below Silverman (red) throughout.}
+  \label{fig:mixn}
+\end{figure}
+
+At the \emph{best overall} budget ($n=20000$) the CDF gap is about $0.010$ to $0.016$, which is good.
+At the \emph{under-2k} budget ($n=1000$) it is about $0.04$ to $0.06$, which is moderate. The symmetric
+mixture (well-separated modes, a deep valley) is the harder of the two at low $n$; the asymmetric one
+(overlapping modes) is easier.
+
+\subsection{What needs samples}
+
+As with the single Gaussian, the CDF stays usable even at small $n$, while the multimodal
+\emph{structure} is what needs data: at low $n$ the valley between the modes is filled in and the modes
+are blunt, and both sharpen toward the truth as $n$ grows (Figure~\ref{fig:mixprog}).
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_symmetric_bimodal_progression.png}
+  \caption{Symmetric mixture, adaptive window: estimate vs samples (black = truth, blue = estimate).
+  Top row density, bottom row CDF. The valley between the modes deepens toward the truth as $n$ grows;
+  the CDF is already usable at $n=100$.}
+  \label{fig:mixprog}
+\end{figure}
+
+One lever is held in reserve: the adaptive pilot here is the full Silverman window; a sharper pilot
+(variance-matched) or a cross-validation window would refine the estimate further at a fixed sample
+count, which is the natural next step if the under-2k accuracy needs to improve.
+
+\section{Summary so far}
+
+On the single Gaussian, a Parzen Window with a data-driven Silverman window size estimates the CDF
+essentially exactly (gap about $0.02$ at $n=2000$, $0.008$ at $n=20000$). On the two mixtures, an
+adaptive window size is best, reaching a gap of about $0.01$ with abundant data and about $0.04$ to
+$0.06$ in the scarce-data budget. Throughout, the CDF is robust even at tiny sample counts because it
+is an integral; the density and the multimodal structure are what demand data. The next steps refine
+the mixture estimate further and then test the estimator on a battery of more complex distributions,
+before training a network to learn the consolidated CDF.
+
+\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py} and
+\texttt{python scripts/parzen\_mixtures.py} regenerate every figure and number above; the running log
+is in \texttt{docs/study.md}.
 
 \end{document}
