@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{float}
 \usepackage{xcolor}
 \usepackage{hyperref}
 
@@ -58,7 +59,7 @@ is better), and we also track the recovered density's peak height as a finer che
 We start as simply as possible ($n=2000$) and add one ingredient at a time, each motivated by the
 previous shortcoming (Table~\ref{tab:window}, Figure~\ref{fig:window}).
 
-\begin{table}[h]
+\begin{table}[H]
   \centering
   \caption{Window-size strategies on $N(0,1)$, $n=2000$.}
   \label{tab:window}
@@ -84,7 +85,7 @@ previous shortcoming (Table~\ref{tab:window}, Figure~\ref{fig:window}).
   the gap to $0.020$; estimate and truth coincide. This is our estimator for the single Gaussian.
 \end{itemize}
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_gaussian_window_strategies.png}
   \caption{Window-size strategies. The fixed and adaptive windows over-smooth (red, orange); the
@@ -99,7 +100,7 @@ indistinguishable; the error $|\Fhat-F|$ peaks at $0.020$ near the shoulders. Th
 imperfection is the density peak, estimated slightly low ($0.37$ vs $0.40$), a residual of smoothing
 that the next subsection resolves.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_gaussian_silverman_check.png}
   \caption{Visual check of the Silverman estimate ($n=2000$): density vs samples (left), CDF vs truth
@@ -112,7 +113,7 @@ that the next subsection resolves.
 We sweep the sample count (Silverman window, averaged over $5$ seeds; Table~\ref{tab:n},
 Figures~\ref{fig:nsweep} and \ref{fig:nprog}). Two things stand out.
 
-\begin{table}[h]
+\begin{table}[H]
   \centering
   \caption{Effect of the sample count on $N(0,1)$ (Silverman window, mean over $5$ seeds).}
   \label{tab:n}
@@ -140,7 +141,7 @@ Figures~\ref{fig:nsweep} and \ref{fig:nprog}). Two things stand out.
   abundant data. Convergence is slow, the expected Silverman rate (window size $\propto n^{-1/5}$).
 \end{itemize}
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_gaussian_sample_size.png}
   \caption{CDF gap (left) and density peak (right) versus the number of samples; error bars over
@@ -148,7 +149,7 @@ Figures~\ref{fig:nsweep} and \ref{fig:nprog}). Two things stand out.
   \label{fig:nsweep}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_gaussian_sample_size_progression.png}
   \caption{The estimate sharpening with more samples (black = truth, green = Silverman estimate). Top
@@ -167,7 +168,7 @@ Silverman pilot.
 
 \subsection{Silverman vs adaptive window size}
 
-\begin{table}[h]
+\begin{table}[H]
   \centering
   \caption{CDF gap on the two mixtures, mean over $3$ seeds. The adaptive window beats Silverman at
   every sample count; the two carried budgets are in bold.}
@@ -189,7 +190,7 @@ Figures~\ref{fig:mixstrat} and \ref{fig:mixn}), modestly at low $n$ and more at 
 $n=20000$: $0.024$ to $0.0155$; asymmetric: $0.014$ to $0.0098$). So the estimator of choice for
 mixtures is the adaptive window.
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_symmetric_bimodal_window_strategies.png}
   \caption{Symmetric mixture ($n=2000$): Silverman (red, dashed) over-smooths the valley between the
@@ -197,28 +198,40 @@ mixtures is the adaptive window.
   \label{fig:mixstrat}
 \end{figure}
 
-\subsection{The two sample budgets}
-
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
-  \includegraphics[width=0.7\textwidth]{parzen_symmetric_bimodal_sample_size.png}
-  \caption{Symmetric mixture: CDF gap vs the number of samples, for both window strategies; the two
-  carried budgets are marked. The adaptive curve (blue) stays below Silverman (red) throughout.}
-  \label{fig:mixn}
+  \includegraphics[width=\textwidth]{parzen_asymmetric_bimodal_window_strategies.png}
+  \caption{Asymmetric mixture ($n=2000$): same comparison. The modes overlap, so the gap is smaller,
+  but the adaptive window (blue) is again the closer fit.}
+  \label{fig:mixstrat_asym}
 \end{figure}
+
+\subsection{The two sample budgets}
 
 At the \emph{best overall} budget ($n=20000$) the CDF gap is about $0.010$ to $0.016$, which is good.
 At the \emph{under-2k} budget ($n=1000$) it is about $0.04$ to $0.06$, which is moderate. The symmetric
 mixture (well-separated modes, a deep valley) is the harder of the two at low $n$; the asymmetric one
-(overlapping modes) is easier.
+(overlapping modes) is easier. In both cases the adaptive curve stays below Silverman at every sample
+count (Figure~\ref{fig:mixn}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\textwidth]{parzen_symmetric_bimodal_sample_size.png}\hfill
+  \includegraphics[width=0.49\textwidth]{parzen_asymmetric_bimodal_sample_size.png}
+  \caption{CDF gap vs the number of samples for the symmetric (left) and asymmetric (right) mixtures,
+  both window strategies; the two carried budgets are marked. The adaptive curve (blue) stays below
+  Silverman (red) throughout.}
+  \label{fig:mixn}
+\end{figure}
 
 \subsection{What needs samples}
 
 As with the single Gaussian, the CDF stays usable even at small $n$, while the multimodal
 \emph{structure} is what needs data: at low $n$ the valley between the modes is filled in and the modes
-are blunt, and both sharpen toward the truth as $n$ grows (Figure~\ref{fig:mixprog}).
+are blunt, and both sharpen toward the truth as $n$ grows
+(Figures~\ref{fig:mixprog} and \ref{fig:mixprog_asym}).
 
-\begin{figure}[h]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{parzen_symmetric_bimodal_progression.png}
   \caption{Symmetric mixture, adaptive window: estimate vs samples (black = truth, blue = estimate).
@@ -227,10 +240,19 @@ are blunt, and both sharpen toward the truth as $n$ grows (Figure~\ref{fig:mixpr
   \label{fig:mixprog}
 \end{figure}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{parzen_asymmetric_bimodal_progression.png}
+  \caption{Asymmetric mixture, adaptive window: same view. The two overlapping modes resolve with more
+  samples, while the CDF is accurate throughout.}
+  \label{fig:mixprog_asym}
+\end{figure}
+
 One lever is held in reserve: the adaptive pilot here is the full Silverman window; a sharper pilot
 (variance-matched) or a cross-validation window would refine the estimate further at a fixed sample
 count, which is the natural next step if the under-2k accuracy needs to improve.
 
+\clearpage
 \section{Summary so far}
 
 On the single Gaussian, a Parzen Window with a data-driven Silverman window size estimates the CDF
