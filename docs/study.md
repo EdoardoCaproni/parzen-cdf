@@ -60,3 +60,48 @@ Setup: 2000 samples, evaluation against the exact `N(0,1)`. Script:
 
 **State of the art (single Gaussian):** Parzen Window with **Silverman window size**; quality improves
 smoothly with the sample count. Next: carry it to two Gaussian mixtures (Phase A, step 2).
+
+---
+
+## Phase A · two Gaussian mixtures
+
+We carry **two operating points** forward from here on (owner's request): **best overall** = abundant
+data, `n = 20000`; **best under-2k** = a scarce-data budget, `n = 1000` (`n = 500` reported too). We
+compare the consolidated **Silverman** window size against an **adaptive** (per-point) window with a
+Silverman pilot, since Silverman tends to over-smooth the valley between modes. Script:
+`scripts/parzen_mixtures.py`.
+
+**CDF gap (KS) vs truth** (mean over 3 seeds; lower is better):
+
+| distribution | strategy | n=500 | **n=1000 (under-2k)** | n=2000 | **n=20000 (overall)** |
+|---|---|---|---|---|---|
+| symmetric `0.5 N(±2,0.7)` | Silverman | 0.079 | 0.065 | 0.048 | 0.024 |
+| | **adaptive** | 0.076 | **0.060** | 0.041 | **0.0155** |
+| asymmetric `0.65 N(0,1)+0.35 N(3,0.6)` | Silverman | 0.048 | 0.043 | 0.027 | 0.014 |
+| | **adaptive** | 0.042 | **0.039** | 0.024 | **0.0098** |
+
+![symmetric — window strategies](../results/parzen_symmetric_bimodal_window_strategies.png)
+![symmetric — sample size](../results/parzen_symmetric_bimodal_sample_size.png)
+![symmetric — progression](../results/parzen_symmetric_bimodal_progression.png)
+![asymmetric — window strategies](../results/parzen_asymmetric_bimodal_window_strategies.png)
+![asymmetric — sample size](../results/parzen_asymmetric_bimodal_sample_size.png)
+![asymmetric — progression](../results/parzen_asymmetric_bimodal_progression.png)
+
+**Findings.**
+
+1. **Adaptive (pilot Silverman) beats plain Silverman everywhere**, modestly at low `n` and more at
+   high `n` (symmetric at 20k: 0.024 → 0.0155; asymmetric: 0.014 → 0.0098). So the best strategy for
+   mixtures is the adaptive window size.
+2. **The two budgets.** *Best overall* (`n=20000`): CDF gap ≈ **0.010–0.016** — good. *Under-2k*
+   (`n=1000`): ≈ **0.04–0.06** — moderate. The **symmetric** mixture (well-separated modes, deep
+   valley) is the harder one at low `n`; the asymmetric (overlapping modes) is easier.
+3. **What needs samples is the multimodal structure.** At low `n` the pdf valley between modes is
+   filled in (over-smoothed) and the modes are blunt; the valley deepens and the modes sharpen toward
+   the truth as `n` grows (progression figures). The CDF itself stays usable even at `n=500`.
+4. **An untapped lever (noted, not yet used).** The adaptive pilot here is the full Silverman window;
+   a *sharper* pilot (variance-matched) or a cross-validation window would sharpen further at fixed
+   `n`. Held in reserve in case the under-2k accuracy needs to improve.
+
+**State of the art (mixtures):** Parzen Window with an **adaptive window size** (Silverman pilot),
+carried at the two budgets. Next: ~10 more complex distributions tested with this estimator (Phase A,
+step 3).
