@@ -115,6 +115,48 @@ Silverman pilot, since Silverman tends to over-smooth the valley between modes. 
    a *sharper* pilot (variance-matched) or a cross-validation window would sharpen further at fixed
    `n`. Held in reserve in case the under-2k accuracy needs to improve.
 
-**State of the art (mixtures):** Parzen Window with an **adaptive window size** (Silverman pilot),
-carried at the two budgets. Next: ~10 more complex distributions tested with this estimator (Phase A,
-step 3).
+**State of the art (mixtures, provisional):** adaptive window size (Silverman pilot). **Revised by
+step 3 below** once tested on a broader battery. Next: ~10 more complex distributions.
+
+---
+
+## Phase A · step 3: a battery of 10 random complex mixtures
+
+We generate 10 random Gaussian mixtures (3 to 6 modes, varied means and widths via
+`data.random_mixture`) and test every truth-free window-size selector on all of them, at the two
+budgets. Cross-validation is `O(n^2 * candidates)`, so it is run only at the under-2k budget
+(impractical at `n=20000`). One sample set per (mixture, budget), seeded by mixture index. Script:
+`scripts/parzen_random.py`.
+
+**Mean CDF gap across the 10 mixtures** (lower is better):
+
+| selector | under-2k (n=1000) | overall (n=20000) |
+|---|---|---|
+| Silverman | 0.069 | 0.032 |
+| variance-matched | 0.044 | **0.015** |
+| adaptive (pilot Silverman) | 0.061 | 0.021 |
+| likelihood-CV | 0.029 | impractical (`O(n²·cand)`) |
+| **LSCV** | **0.028** | impractical |
+
+![selectors](../results/parzen_random_selectors.png)
+![the 10 mixtures](../results/parzen_random_gallery.png)
+
+**Findings (the battery overturns the bimodal conclusion).**
+
+1. **Cross-validation (LSCV ≈ likelihood-CV) is the most accurate truth-free selector** (~0.028 at
+   under-2k, about 2.4× better than Silverman and clearly better than adaptive). It searches for the
+   window that fits the data, which pays off on complex multimodal shapes.
+2. **Adaptive does NOT generalize as the winner.** It won on the two hand-picked bimodals, but across
+   10 complex mixtures it is only middling (0.061 under-2k, 0.021 overall), worse than variance-matched
+   at *both* budgets. Lesson: a conclusion from 2 distributions did not survive 10.
+3. **Variance-matched (a cheap `×0.55` shrink of Silverman) is the best practical selector at high
+   `n`** (0.015 overall) and second at low `n`. Being `O(n)`, it scales to any `n`, unlike CV.
+4. **Silverman is consistently the weakest** (over-smooths), except on near-unimodal/broad mixtures.
+5. The gallery shows the adaptive estimate still blunting sharp peaks; CV / variance-matched sharpen
+   them better.
+
+**State of the art (truth-free Parzen window), revised:**
+- **low-data (under-2k): cross-validation (LSCV)**;
+- **high-data (overall): variance-matched** (use CV if its cost is affordable).
+Adaptive is demoted to a special-case method (good on simple, well-separated bimodals). This is the
+estimator we carry into Phase B (the MLP).

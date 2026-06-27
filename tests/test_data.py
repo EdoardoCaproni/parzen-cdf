@@ -45,3 +45,13 @@ def test_sample_mean_matches_analytic_mean(mix: data.GaussianMixture1D) -> None:
 def test_invalid_weights_rejected() -> None:
     with pytest.raises(ValueError):
         data.GaussianMixture1D(weights=[0.5, 0.4], means=[0.0, 1.0], stds=[1.0, 1.0])
+
+
+def test_random_mixture_is_valid() -> None:
+    rng = np.random.default_rng(0)
+    m = None
+    for _ in range(20):
+        m = data.random_mixture(rng)
+        assert 3 <= m.n_components <= 6  # __post_init__ already enforces valid weights/stds
+    grid = np.linspace(-30, 30, 12000)
+    assert abs(metrics.integrates_to_one(m.pdf(grid), grid) - 1.0) < 1e-2

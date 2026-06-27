@@ -105,3 +105,22 @@ def spike_in_broad() -> GaussianMixture1D:
 def default_mixture() -> GaussianMixture1D:
     """The reference multimodal mixture used as the running example in Step 1."""
     return asymmetric_trimodal()
+
+
+def random_mixture(
+    rng: np.random.Generator,
+    k: int | None = None,
+    mean_range: tuple[float, float] = (-5.0, 5.0),
+    std_range: tuple[float, float] = (0.2, 1.5),
+) -> GaussianMixture1D:
+    """A random Gaussian mixture for stress-testing the estimator on varied, more complex shapes.
+
+    ``k`` components (random in 3..6 if None), means spread uniformly over ``mean_range``, stds over
+    ``std_range`` (so sharp and broad modes mix), and Dirichlet weights. Deterministic given ``rng``.
+    """
+    if k is None:
+        k = int(rng.integers(3, 7))
+    means = rng.uniform(*mean_range, size=k)
+    stds = rng.uniform(*std_range, size=k)
+    weights = rng.dirichlet(np.ones(k))
+    return GaussianMixture1D(weights=weights, means=means, stds=stds)
