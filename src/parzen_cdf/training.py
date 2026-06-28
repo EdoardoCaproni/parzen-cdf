@@ -30,6 +30,7 @@ class TrainConfig:
     monotonicity_weight: float = 0.0  # 0 = unconstrained baseline; > 0 = soft penalty
     weight_decay: float = 0.0  # L2 regularization (wrong smoothness prior for a CDF net; see follow-up)
     curvature_weight: float = 0.0  # > 0 penalizes |d2F/dx2|: a CDF-appropriate smoothness prior
+    optimizer: str = "adam"  # "sgd" (simplest, fixed lr) or "adam"
     n_penalty_points: int = 256
     seed: int = 0
 
@@ -133,7 +134,10 @@ def train_cdf(
         lo, hi = inputs.min().item(), inputs.max().item()
         penalty_points = torch.linspace(lo, hi, config.n_penalty_points)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+    if config.optimizer == "sgd":
+        optimizer = torch.optim.SGD(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
     mse = torch.nn.MSELoss()
     history: list[float] = []
 

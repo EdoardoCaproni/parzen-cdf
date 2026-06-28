@@ -160,3 +160,38 @@ budgets. Cross-validation is `O(n^2 * candidates)`, so it is run only at the und
 - **high-data (overall): variance-matched** (use CV if its cost is affordable).
 Adaptive is demoted to a special-case method (good on simple, well-separated bimodals). This is the
 estimator we carry into Phase B (the MLP).
+
+---
+
+# Phase B — the MLP
+
+The network learns the consolidated Parzen CDF, trained **only on the data points** `(xᵢ, F̂(xᵢ))`,
+with the pdf recovered as its derivative. We carry the two budgets directly (no 2000 step): under-2k
+`n=1000` and overall `n=20000`. On the single Gaussian the Parzen target is the Silverman CDF.
+
+## Phase B · step 1: the simplest possible MLP (single Gaussian)
+
+Setup: one hidden layer (width 16), sigmoidal activations (to mimic the logistic-window CDF shape),
+**plain SGD with a fixed learning rate (1.0)**, full batch, 5000 epochs. Adam and other refinements
+are deferred to later steps. Script: `scripts/mlp_gaussian.py`.
+
+| budget | Parzen target KS (ceiling) | simplest MLP KS | gap |
+|---|---|---|---|
+| under-2k (n=1000) | 0.032 | 0.041 | small |
+| overall (n=20000) | **0.009** | **0.028** | **large** |
+
+![Phase B step 1](../results/mlp_gaussian_simplest.png)
+
+**Findings.**
+
+1. **The simplest MLP undershoots its Parzen target.** It learns a sensible CDF but lags both the
+   target and the truth (figure). At under-2k the gap is small (0.041 vs 0.032); at overall it is
+   large (0.028 vs a near-perfect target of 0.009).
+2. **At high `n` the network, not the target, is the bottleneck.** With abundant data the Silverman
+   Parzen target is essentially exact (0.009), but plain SGD at a fixed learning rate cannot match it
+   (0.028). This is the clear motivation for the next step (Adam, and more training/capacity).
+3. **Monotonicity is not binding** (0% violations) and mass is ~0.98. So, as in Phase A, the
+   constraint does not bite yet on this smooth target.
+
+**Next (Phase B, step 2):** swap SGD for **Adam** (the obvious nuance), expecting the network to
+reach its Parzen target, then continue with capacity / training refinements.
