@@ -52,6 +52,21 @@ $h$ a smooth, blurry one. We score an estimate by the \textbf{CDF gap}, the Kolm
 distance $\max_x|F(x)-\Fhat(x)|$ (the largest vertical gap between the estimated and true CDF, smaller
 is better), and we also track the recovered density's peak height as a finer check.
 
+\paragraph{Window-size selectors.} We compare several ways of choosing the window size; each uses only
+the samples (never the truth), so each is deployable. \emph{Silverman's rule} (Silverman, 1986) is a
+closed-form default, a spread estimate times $n^{-1/5}$, derived to be optimal for a Gaussian target
+and so prone to over-smoothing multimodal ones. The \emph{variance-matched} window is a small
+correction of our own: Silverman's constant assumes a unit-variance kernel, but the logistic window
+has variance $\pi^2/3 \approx 3.29$ and so smooths about $1.8$ times more, so we rescale by
+$\sqrt{3}/\pi \approx 0.55$ to match (a heuristic, not a named method). The \emph{adaptive} window
+(Abramson, 1982) is per-point, narrower where the data is dense and wider in the tails, set as a pilot
+window times $(\,\fhat_{\text{pilot}}(x_i)/g\,)^{-1/2}$ with $g$ the geometric mean of the pilot
+density at the samples. \emph{Cross-validation} chooses the window that best predicts held-out
+samples, in two variants: least-squares CV (Rudemo, 1982; Bowman, 1984), which minimizes an unbiased
+estimate of the integrated squared error, and likelihood CV (Habbema et al., 1974), which maximizes
+the leave-one-out log-likelihood. Both are accurate but cost $O(n^2 \times \text{candidates})$, which
+is why we do not run them at the largest sample count. Full references are listed at the end.
+
 \section{Part I: the single Gaussian \texorpdfstring{$N(0,1)$}{N(0,1)}}
 
 \subsection{Choosing the window size}
@@ -324,5 +339,21 @@ its derivative.
 \paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
 \texttt{scripts/parzen\_mixtures.py}, and \texttt{scripts/parzen\_random.py} regenerate every figure
 and number above; the running log is in \texttt{docs/study.md}.
+
+\section*{References}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Parzen, E. (1962). On estimation of a probability density function and mode. \emph{Annals of
+  Mathematical Statistics} 33(3).
+  \item Silverman, B. W. (1986). \emph{Density Estimation for Statistics and Data Analysis}. Chapman
+  and Hall. (Silverman's rule of thumb.)
+  \item Abramson, I. S. (1982). On bandwidth variation in kernel estimates: a square root law.
+  \emph{Annals of Statistics} 10(4). (Adaptive, per-point window.)
+  \item Rudemo, M. (1982). Empirical choice of histograms and kernel density estimators.
+  \emph{Scandinavian Journal of Statistics} 9(2). (Least-squares cross-validation.)
+  \item Bowman, A. W. (1984). An alternative method of cross-validation for the smoothing of density
+  estimates. \emph{Biometrika} 71(2). (Least-squares cross-validation.)
+  \item Habbema, J. D. F., Hermans, J., van den Broek, K. (1974). A stepwise discriminant analysis
+  program using density estimation. \emph{COMPSTAT}. (Likelihood cross-validation.)
+\end{itemize}
 
 \end{document}

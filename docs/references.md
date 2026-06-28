@@ -12,6 +12,19 @@
 - **Silverman, B. W. (1986).** *Density Estimation for Statistics and Data Analysis.* — Bandwidth
   selection (Silverman's rule of thumb).
 
+## Window-size (bandwidth) selectors used in the study
+
+- **Abramson, I. S. (1982).** *On bandwidth variation in kernel estimates — a square root law.* Annals
+  of Statistics 10(4). — The **adaptive** (per-point) window: narrower where data is dense.
+- **Rudemo, M. (1982).** *Empirical choice of histograms and kernel density estimators.* Scandinavian
+  Journal of Statistics 9(2). — **Least-squares (unbiased) cross-validation.**
+- **Bowman, A. W. (1984).** *An alternative method of cross-validation for the smoothing of density
+  estimates.* Biometrika 71(2). — **Least-squares cross-validation** (independently).
+- **Habbema, Hermans & van den Broek (1974).** *A stepwise discriminant analysis program using density
+  estimation.* COMPSTAT. — **Likelihood (leave-one-out) cross-validation.**
+- *Variance-matched* window: not a named method; a heuristic rescaling of Silverman's Gaussian-derived
+  constant by `sqrt(3)/pi` to match the logistic window's variance (`pi^2/3`). Project-specific.
+
 ## Neural CDF / density estimation (core precedent for Step 1)
 
 - **Magdon-Ismail, M. & Atiya, A.** Neural-network approach to estimating a CDF and differentiating
