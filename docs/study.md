@@ -195,3 +195,28 @@ are deferred to later steps. Script: `scripts/mlp_gaussian.py`.
 
 **Next (Phase B, step 2):** swap SGD for **Adam** (the obvious nuance), expecting the network to
 reach its Parzen target, then continue with capacity / training refinements.
+
+## Phase B · step 2: Adam closes the gap (single Gaussian)
+
+Same network (1 hidden, width 16, sigmoid, fixed lr, full batch, 5000 epochs); only the optimizer
+changes, SGD to **Adam (fixed lr 0.03)**. Script: `scripts/mlp_gaussian.py`.
+
+| budget | Parzen target (ceiling) | SGD (step 1) | **Adam (step 2)** |
+|---|---|---|---|
+| under-2k (n=1000) | 0.032 | 0.041 | **0.032** |
+| overall (n=20000) | 0.009 | 0.028 | **0.008** |
+
+![SGD vs Adam](../results/mlp_gaussian_sgd_vs_adam.png)
+
+**Findings.**
+
+1. **Adam reaches the Parzen target at both budgets** (n=1000: 0.032 = target; n=20000: 0.008,
+   matching/just under the 0.009 target). It fits the labels essentially exactly (train MSE ~1e-6),
+   so the network is no longer the bottleneck; the SGD gap of step 1 was purely an optimizer issue.
+2. **The recovered pdf improves too**: pdf MSE drops from 2.3e-4 (SGD) to 1e-5 (Adam) at overall, and
+   the recovered mass rises from ~0.986 to ~0.999.
+3. **Monotonicity still not binding** (0% violations).
+
+So on the single Gaussian, the simplest-but-Adam MLP is a faithful learner of the Parzen CDF at both
+budgets. **Next (Phase B, step 3):** carry this to the mixtures / complex distributions (where the
+target is the consolidated CV / variance-matched Parzen), and probe capacity if the net then lags.
