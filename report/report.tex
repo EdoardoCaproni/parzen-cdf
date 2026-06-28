@@ -325,7 +325,7 @@ multimodal shapes. Its cost makes it impractical at very large $n$, where the ch
 choice ($0.015$). Silverman is consistently the weakest. The lesson is methodological as much as
 numerical: a conclusion drawn from two distributions did not survive ten.
 
-\section{Summary so far}
+\section{Summary of the Parzen-estimation phase (Parts I to III)}
 
 A Parzen Window estimates the CDF well across all the cases we tried, and the CDF is robust even at
 tiny sample counts because it is an integral; the density and the multimodal structure are what demand
@@ -333,12 +333,59 @@ data. The right \emph{window size} is data-driven and depends on the budget: on 
 \textbf{cross-validation} is the most accurate where it is affordable (small samples), while the cheap
 \textbf{variance-matched} window is the best practical choice at large samples. The adaptive window,
 which looked best on two hand-picked bimodals, did not generalise. This consolidated estimator is what
-the next phase will use: a network trained to learn the resulting CDF, with the density recovered as
-its derivative.
+the next phase uses: a network trained to learn the resulting CDF, with the density recovered as its
+derivative.
+
+\section{Part IV: learning the CDF with a network}
+
+The Parzen estimate is already a usable CDF, so why fit a network to it? A network gives a compact,
+differentiable model whose derivative is the density in closed form, and it is the object we will
+later extend to higher dimensions. The network is trained \emph{only on the data points}: its inputs
+are the $n$ samples $x_i$ and its labels are the Parzen CDF values $\Fhat(x_i)$ there, with no
+collocation and no augmentation. We carry the two budgets directly, $n=1000$ and $n=20000$; on the
+single Gaussian the target is the Silverman Parzen CDF.
+
+\subsection{The simplest network}
+
+We start as simply as possible: one hidden layer of width $16$, sigmoidal activations (so the output
+has the smooth monotone S-shape of the logistic-window CDF, and its derivative is smooth), trained by
+plain stochastic gradient descent at a \emph{fixed} learning rate, full batch. Adam and other
+refinements are deferred to later steps. The density is the derivative of the trained network.
+
+\begin{table}[H]
+  \centering
+  \caption{Simplest MLP (SGD, fixed learning rate) vs its Parzen target, CDF gap on $N(0,1)$.}
+  \label{tab:mlp1}
+  \begin{tabular}{lcc}
+    \toprule
+    Budget & Parzen target (ceiling) & simplest MLP \\
+    \midrule
+    under-2k ($n{=}1000$)  & 0.032 & 0.041 \\
+    overall ($n{=}20000$)  & \textbf{0.009} & \textbf{0.028} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mlp_gaussian_simplest.png}
+  \caption{Simplest MLP (orange) against the Parzen target (gray, dashed) and the truth (black), at
+  the two budgets. The network learns a sensible CDF but lags its target, most visibly at $n=20000$.}
+  \label{fig:mlp1}
+\end{figure}
+
+\paragraph{Findings.} The simplest network learns a sensible CDF but \emph{undershoots its Parzen
+target} (Table~\ref{tab:mlp1}, Figure~\ref{fig:mlp1}). At the small budget the gap is minor ($0.041$
+vs $0.032$); at the large budget it is large ($0.028$ vs a near-perfect target of $0.009$). With
+abundant data the bottleneck is now the network, not the target: plain SGD at a fixed learning rate
+cannot match a target this sharp. Monotonicity is not an issue (no violations), as on the Parzen side.
+This sets up the next step: replacing SGD with Adam, and then adding capacity and training, expecting
+the network to close the gap to its target.
 
 \paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
-\texttt{scripts/parzen\_mixtures.py}, and \texttt{scripts/parzen\_random.py} regenerate every figure
-and number above; the running log is in \texttt{docs/study.md}.
+\texttt{scripts/parzen\_mixtures.py}, \texttt{scripts/parzen\_random.py}, and
+\texttt{scripts/mlp\_gaussian.py} regenerate every figure and number above; the running log is in
+\texttt{docs/study.md}.
 
 \section*{References}
 \begin{itemize}\setlength{\itemsep}{0pt}
