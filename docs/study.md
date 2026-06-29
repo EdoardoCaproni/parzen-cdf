@@ -290,3 +290,34 @@ CDF gap (KS) vs truth (target KS in parentheses is the ceiling):
 
 **Next (Phase B):** the random complex distributions (step 4), and addressing monotonicity where it
 appears, then the pdf-via-derivative consolidation (checkpoint 1).
+
+## Phase B · monotonicity: which enforcement?
+
+On the regime that violated (symmetric bimodal, n=20000, width 16, variance-matched target; 3 seeds)
+we compare the three enforcement routes. Script: `scripts/mlp_monotonicity.py`.
+
+| strategy | KS | viol% | pdf MSE | mass |
+|---|---|---|---|---|
+| baseline (unconstrained) | 0.0107 | 1.98% | 0.00007 | 0.992 |
+| soft penalty λ=10 | 0.0118 | 1.98% | 0.00008 | 0.990 |
+| soft penalty λ=100 | 0.0185 | 1.98% | 0.00015 | 0.979 |
+| Sill (by construction) | 0.0188 | **0%** | 0.00018 | 0.974 |
+| **downstream rectification** | **0.0117** | **0%** | **0.00007** | **1.0000** |
+
+![monotonicity enforcement](../results/mlp_monotonicity.png)
+
+**Findings.**
+
+1. **The soft penalty fails to enforce monotonicity** here: the violation fraction stays at 1.98% even
+   at λ=100, and the larger weight only *hurts* the fit (KS 0.011 → 0.019). Penalising at a discrete
+   set of points does not guarantee global monotonicity, and it fights the data term.
+2. **Sill (monotone by construction) does enforce it (0%)** but at an accuracy cost (KS 0.011 → 0.019,
+   worse pdf) because the non-negative-weight constraint limits a width-16 network.
+3. **Downstream rectification wins clearly.** Taking the trained net's CDF, applying a cumulative max,
+   and rescaling to [0,1] removes all violations at *negligible* accuracy cost (KS 0.012 ≈ baseline
+   0.011, identical pdf MSE) and, as a bonus, normalises the recovered mass to exactly 1. The
+   violations were small dips that the cumulative max removes without disturbing the good fit.
+
+**Decision:** adopt **downstream rectification (cumulative-max + rescale)** as the monotonicity
+strategy. It guarantees a valid CDF and unit-mass density at near-zero cost, and it doubles as the fix
+for the small pdf mass loss seen earlier. (Sill stays available as the by-construction alternative.)
