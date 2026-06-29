@@ -117,6 +117,19 @@ def density_from_cdf(model: CDFNet, x: torch.Tensor, clamp: bool = True) -> torc
     return grad.clamp_min(0.0) if clamp else grad
 
 
+def rectify_cdf(cdf_on_grid: np.ndarray, grid: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Downstream monotonicity fix on an evaluated CDF curve: take the cumulative max (so it is
+    non-decreasing) and rescale to [0, 1]; return the rectified CDF and its density (the clamped
+    gradient, which then integrates to 1). The chosen, cheapest monotonicity strategy (see the study).
+    """
+    rc = np.maximum.accumulate(np.asarray(cdf_on_grid, dtype=float))
+    lo, hi = float(rc[0]), float(rc[-1])
+    if hi > lo:
+        rc = (rc - lo) / (hi - lo)
+    pdf = np.clip(np.gradient(rc, np.asarray(grid, dtype=float)), 0.0, None)
+    return rc, pdf
+
+
 def train_cdf(
     model: CDFNet,
     inputs: torch.Tensor,

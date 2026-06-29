@@ -321,3 +321,37 @@ we compare the three enforcement routes. Script: `scripts/mlp_monotonicity.py`.
 **Decision:** adopt **downstream rectification (cumulative-max + rescale)** as the monotonicity
 strategy. It guarantees a valid CDF and unit-mass density at near-zero cost, and it doubles as the fix
 for the small pdf mass loss seen earlier. (Sill stays available as the by-construction alternative.)
+`training.rectify_cdf` implements it.
+
+## Phase B · step 4: the MLP on 10 random complex mixtures
+
+The network (one hidden layer, width 32, sigmoid, Adam lr 0.03) on the 10 random mixtures from Phase A
+step 3, data points only, consolidated Parzen target per budget (LSCV at under-2k, variance-matched at
+overall), with downstream rectification. One sample set per (mixture, budget). Script:
+`scripts/mlp_random.py`.
+
+| budget | mean Parzen target | mean net (rectified) | mean raw violations |
+|---|---|---|---|
+| under-2k (n=1000) | 0.028 | 0.032 | 1.6% |
+| overall (n=20000) | 0.015 | 0.020 | 3.3% |
+
+![recovered densities](../results/mlp_random_gallery.png)
+![net vs target](../results/mlp_random_vs_target.png)
+
+**Findings.**
+
+1. **End to end, the pipeline works on varied complex shapes.** The recovered densities (gallery)
+   track the true densities well across the 10 mixtures, capturing multiple modes and broad+sharp
+   combinations, blunting only the sharpest peaks.
+2. **But the net is no longer a perfectly faithful learner here.** The net-vs-target scatter sits
+   *above* the diagonal: the network lags its Parzen target, more so at the overall budget where the
+   target is sharpest (mean 0.020 vs 0.015). On the very sharp targets (e.g. mixtures 5, 6 at n=20000:
+   target ~0.003 but net ~0.008-0.016) the width-32 network at a fixed training budget cannot fully
+   match the target. Capacity / training would have to scale for full fidelity, which is the cost the
+   single Gaussian and bimodals did not reveal.
+3. **Monotonicity bites notably on complex shapes** (raw violations up to 26% on one mixture, mean
+   1.6-3.3%), and **downstream rectification does real work here** (it is no longer a near-no-op as on
+   the simple cases): the reported gaps are all from monotone, unit-mass curves.
+
+**Next:** checkpoint 1, the end-to-end consolidation (samples to Parzen CDF to MLP to rectified pdf),
+optionally giving the sharpest complex targets a little more capacity/training.

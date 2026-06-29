@@ -6,12 +6,24 @@ import torch
 from parzen_cdf import parzen
 from parzen_cdf.data import default_mixture
 from parzen_cdf.models import CDFNet
+from parzen_cdf import metrics
 from parzen_cdf.training import (
     TrainConfig,
     density_from_cdf,
     make_training_set,
+    rectify_cdf,
     train_cdf,
 )
+
+
+def test_rectify_cdf_is_monotone_and_unit_mass() -> None:
+    grid = np.linspace(-5, 5, 1000)
+    wobbly = 0.5 * (1 + np.tanh(grid)) + 0.02 * np.sin(5 * grid)  # non-monotone CDF-ish curve
+    rc, pdf = rectify_cdf(wobbly, grid)
+    assert np.all(np.diff(rc) >= -1e-12), "rectified CDF must be non-decreasing"
+    assert rc[0] == 0.0 and abs(rc[-1] - 1.0) < 1e-12, "rectified CDF must span [0, 1]"
+    assert np.all(pdf >= 0)
+    assert abs(metrics.integrates_to_one(pdf, grid) - 1.0) < 1e-2
 
 
 def _toy_problem(n_train=256):
