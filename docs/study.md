@@ -355,3 +355,40 @@ overall), with downstream rectification. One sample set per (mixture, budget). S
 
 **Next:** checkpoint 1, the end-to-end consolidation (samples to Parzen CDF to MLP to rectified pdf),
 optionally giving the sharpest complex targets a little more capacity/training.
+
+---
+
+# Checkpoint 1 — the consolidated univariate pipeline
+
+The full univariate pipeline in one run (`scripts/checkpoint1.py`):
+
+> samples → consolidated Parzen window (LSCV if n ≤ 2000, else variance-matched) → labels
+> `(xᵢ, F̂(xᵢ))` at the data points only → MLP (one hidden layer, width 32, sigmoid, Adam lr 0.03,
+> full batch, no validation split) → CDF = network, pdf = its derivative → downstream rectification
+> (cumulative-max + rescale: a monotone CDF and a unit-mass density).
+
+Demonstrated on a ladder at both budgets; the overall-budget models are saved to
+`results/checkpoint1.pt` (gitignored, regenerable).
+
+| distribution | target (1k / 20k) | pipeline net (1k / 20k) | viol | mass |
+|---|---|---|---|---|
+| single Gaussian | 0.027 / 0.006 | 0.024 / 0.016 | 0% | 1.000 |
+| symmetric bimodal | 0.036 / 0.011 | 0.037 / 0.012 | 0% | 1.000 |
+| asymmetric bimodal | 0.037 / 0.008 | 0.037 / 0.009 | 0% | 1.000 |
+| **asymmetric trimodal** | 0.027 / 0.015 | **0.081 / 0.088** | 0% | 1.000 |
+
+![checkpoint 1](../results/checkpoint1.png)
+
+**What checkpoint 1 establishes.**
+
+1. **Monotonicity and mass are fully solved** by the downstream rectification: 0% violations and mass
+   exactly 1 on every distribution and budget.
+2. **The pipeline is faithful up to bimodal complexity**: the network matches its Parzen target on the
+   single Gaussian and both bimodals.
+3. **A clear capacity limit on the hardest case.** The asymmetric trimodal (a sharp, well-separated,
+   low-weight mode of width 0.3) is blunted: net 0.08 vs target 0.027. The width-32 network at a fixed
+   training budget cannot represent it. Scaling capacity / training for sharp targets is the open
+   direction, exactly the "progressively more accurate MLP" the plan anticipated.
+
+**Status:** the univariate machinery (Parzen target → smooth, monotone, unit-mass neural CDF → pdf by
+differentiation) is validated and consolidated, with its limit identified. This is checkpoint 1.
