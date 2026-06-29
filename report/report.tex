@@ -345,6 +345,13 @@ are the $n$ samples $x_i$ and its labels are the Parzen CDF values $\Fhat(x_i)$ 
 collocation and no augmentation. We carry the two budgets directly, $n=1000$ and $n=20000$; on the
 single Gaussian the target is the Silverman Parzen CDF.
 
+\paragraph{How the estimates are read off, and the train/validation split.} The learned CDF is simply
+the network evaluated on a dense \emph{equispaced} grid (used only for scoring and plotting, never for
+training); the learned density is the network's derivative $\mathrm{d}F/\mathrm{d}x$, obtained by
+automatic differentiation on that same grid. Training uses \emph{all} $n$ labelled data points (full
+batch, a fixed number of epochs, with no validation split and no early stopping); we revisit a
+validation split later, where it matters more (noisier targets).
+
 \subsection{The simplest network}
 
 We start as simply as possible: one hidden layer of width $16$, sigmoidal activations (so the output
@@ -381,6 +388,39 @@ abundant data the bottleneck is now the network, not the target: plain SGD at a 
 cannot match a target this sharp. Monotonicity is not an issue (no violations), as on the Parzen side.
 This sets up the next step: replacing SGD with Adam, and then adding capacity and training, expecting
 the network to close the gap to its target.
+
+\subsection{Adam closes the gap}
+
+Keeping everything else fixed, we replace SGD with Adam at a fixed learning rate of $0.03$.
+
+\begin{table}[H]
+  \centering
+  \caption{SGD vs Adam (both at a fixed learning rate), CDF gap on $N(0,1)$.}
+  \label{tab:mlp2}
+  \begin{tabular}{lccc}
+    \toprule
+    Budget & Parzen target & SGD & Adam \\
+    \midrule
+    under-2k ($n{=}1000$) & 0.032 & 0.041 & \textbf{0.032} \\
+    overall ($n{=}20000$) & 0.009 & 0.028 & \textbf{0.008} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mlp_gaussian_sgd_vs_adam.png}
+  \caption{SGD (orange) vs Adam (blue) against the Parzen target (gray, dashed) and the truth (black).
+  Adam sits on the target at both budgets; SGD lags, most visibly in the density peak.}
+  \label{fig:mlp2}
+\end{figure}
+
+\paragraph{Findings.} Adam reaches the Parzen target at both budgets (Table~\ref{tab:mlp2},
+Figure~\ref{fig:mlp2}), fitting the labels essentially exactly (training MSE about $10^{-6}$); the
+recovered density improves with it (its mean squared error falls roughly tenfold and the recovered
+mass rises to about $0.999$). The step-1 shortfall was therefore an optimiser issue, not a capacity
+one: the simplest sigmoidal MLP, trained with Adam, is a faithful learner of the Parzen CDF on the
+single Gaussian. Monotonicity remains a non-issue.
 
 \paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
 \texttt{scripts/parzen\_mixtures.py}, \texttt{scripts/parzen\_random.py}, and
