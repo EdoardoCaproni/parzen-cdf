@@ -422,10 +422,107 @@ mass rises to about $0.999$). The step-1 shortfall was therefore an optimiser is
 one: the simplest sigmoidal MLP, trained with Adam, is a faithful learner of the Parzen CDF on the
 single Gaussian. Monotonicity remains a non-issue.
 
-\paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
-\texttt{scripts/parzen\_mixtures.py}, \texttt{scripts/parzen\_random.py}, \texttt{scripts/mlp\_gaussian.py},
-and (Appendix~\ref{app:empirical}) \texttt{scripts/mlp\_empirical\_cdf.py} regenerate every figure and
-number above; the running log is in \texttt{docs/study.md}.
+\section{Part V: mixtures, monotonicity, and the consolidated pipeline}
+
+\subsection{The network on the mixtures}
+
+Carrying the simplest-plus-Adam network to the two bimodals (target: the consolidated Parzen window
+per budget) the network again reaches its Parzen target. Capacity matters only mildly: width 16
+suffices at the small budget, more width helps at the large one, and too large a width can
+under-train at a fixed budget. Two new effects appear: the density peak is harder to match than on
+the Gaussian, and for the first time the unconstrained network produces a few percent of monotonicity
+violations (symmetric mixture, large budget, width 16), which motivates enforcing the constraint.
+
+\subsection{Enforcing monotonicity}
+
+On that violating regime we compare the three routes (Table~\ref{tab:mono}). The soft penalty fails to
+remove the violations and hurts the fit; the monotone-by-construction (Sill) network removes them but
+costs accuracy; \textbf{downstream rectification} (take the trained CDF, apply a cumulative max,
+rescale to $[0,1]$) removes them at negligible cost and, as a bonus, normalises the density to unit
+mass. We adopt it.
+
+\begin{table}[H]
+  \centering
+  \caption{Monotonicity enforcement on the violating regime (symmetric bimodal, $n=20000$, width 16;
+  mean over 3 seeds).}
+  \label{tab:mono}
+  \begin{tabular}{lccc}
+    \toprule
+    strategy & CDF gap & violations & mass \\
+    \midrule
+    baseline (unconstrained)   & 0.011 & 1.98\% & 0.992 \\
+    soft penalty ($\lambda=100$) & 0.019 & 1.98\% & 0.979 \\
+    Sill (by construction)     & 0.019 & 0\% & 0.974 \\
+    \textbf{downstream rectification} & \textbf{0.012} & \textbf{0\%} & \textbf{1.000} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Checkpoint 1: the consolidated pipeline}
+
+Putting it together (Figure~\ref{fig:ckpt}): samples $\to$ consolidated Parzen window $\to$ labels at
+the data points $\to$ MLP (one hidden layer, sigmoid, Adam) $\to$ CDF and its derivative $\to$
+rectification. On a ladder (single Gaussian, the two bimodals, the asymmetric trimodal) the pipeline
+gives a monotone, unit-mass estimate that matches its Parzen target up to bimodal complexity. The one
+failure is the asymmetric trimodal, whose sharp, well-separated, low-weight mode the width-32 network
+blunts (CDF gap $0.088$ vs a target of $0.015$).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.78\textwidth]{checkpoint1.png}
+  \caption{Checkpoint 1 at the overall budget. The pipeline (blue) matches the truth (black) on the
+  Gaussian and both bimodals; it blunts the asymmetric trimodal (bottom row).}
+  \label{fig:ckpt}
+\end{figure}
+
+\subsection{Capacity resolves the hard case}
+
+The trimodal failure is not fundamental but a matter of size and training (Table~\ref{tab:capacity},
+Figure~\ref{fig:capacity}): scaling to width 64, or a depth-2 network, with more epochs brings the gap
+from $0.088$ down to about $0.016$, reaching the Parzen target, and the density recovers all three
+modes. The simplest network simply has to grow with the sharpness of the target.
+
+\begin{table}[H]
+  \centering
+  \caption{Capacity push on the asymmetric trimodal at the overall budget ($n=20000$, target $0.015$).}
+  \label{tab:capacity}
+  \begin{tabular}{lc}
+    \toprule
+    network & CDF gap \\
+    \midrule
+    width 32, 5000 epochs (checkpoint) & 0.088 \\
+    width 64, 15000 epochs & 0.019 \\
+    \textbf{depth-2 $32{\times}32$, 15000 epochs} & \textbf{0.016} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mlp_capacity_trimodal.png}
+  \caption{Asymmetric trimodal at $n=20000$. The width-32 checkpoint network (red) collapses to a
+  single bump; the scaled network (green) recovers all three modes and sits on the Parzen target
+  (gray, dashed).}
+  \label{fig:capacity}
+\end{figure}
+
+\subsection{What the univariate study establishes}
+
+Across every case the network is a \emph{faithful learner} of its Parzen target, given an adequate
+optimiser (Adam) and enough capacity and training for the target's sharpness. Monotonicity and unit
+mass are guaranteed cheaply by downstream rectification. The accuracy ceiling is therefore the Parzen
+target itself, set by the window size (Parts I to III), not the network. In one dimension this means
+the network does not beat the kernel estimate; it faithfully reproduces it (Appendix~\ref{app:empirical}
+even shows the bare empirical CDF can serve as the target). The network's real value is the
+differentiable, compact, constraint-respecting functional form, which is what will carry to the
+multivariate case.
+
+\paragraph{Reproducibility.} The scripts in \texttt{scripts/} regenerate every figure and number
+above: \texttt{parzen\_gaussian.py}, \texttt{parzen\_mixtures.py}, \texttt{parzen\_random.py} (Parts I
+to III); \texttt{mlp\_gaussian.py}, \texttt{mlp\_mixtures.py}, \texttt{mlp\_monotonicity.py},
+\texttt{mlp\_random.py}, \texttt{checkpoint1.py}, \texttt{mlp\_capacity.py} (Parts IV to V); and
+\texttt{mlp\_empirical\_cdf.py} (Appendix~\ref{app:empirical}). The running log is in
+\texttt{docs/study.md}.
 
 \appendix
 \section{Learning the CDF directly from the empirical CDF}

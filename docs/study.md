@@ -392,3 +392,24 @@ Demonstrated on a ladder at both budgets; the overall-budget models are saved to
 
 **Status:** the univariate machinery (Parzen target → smooth, monotone, unit-mass neural CDF → pdf by
 differentiation) is validated and consolidated, with its limit identified. This is checkpoint 1.
+
+## Phase B · capacity push: the trimodal limit was not fundamental
+
+Scaling the network on the failing case (asymmetric trimodal), with downstream rectification. Script:
+`scripts/mlp_capacity.py`.
+
+| trimodal | Parzen target | w32 e5000 (checkpoint) | w64 e15000 | w128 e15000 | **w32×2 e15000** |
+|---|---|---|---|---|---|
+| under-2k (n=1000) | 0.027 | 0.081 | 0.028 | 0.028 | 0.029 |
+| overall (n=20000) | 0.015 | 0.088 | 0.019 | 0.020 | **0.016** |
+
+![capacity push](../results/mlp_capacity_trimodal.png)
+
+**Finding.** The checkpoint's trimodal failure was **under-capacity / under-training, not
+fundamental**. Scaling to **width 64 (or a depth-2 32×32) with 15000 epochs** brings the net from
+KS 0.08 down to ~0.016-0.019, **reaching its Parzen target** on the trimodal too (pdf MSE down ~20×;
+the figure shows the scaled net recovering all three modes, sitting on the Parzen target, while the
+width-32 checkpoint collapsed to a single bump). So the "faithful learner" result holds on *every*
+distribution given adequate capacity/training; the remaining gap to the truth is the Parzen target's
+own (bandwidth) limit, consistent with the whole study. The simplest network just needs to grow with
+the target's sharpness.
