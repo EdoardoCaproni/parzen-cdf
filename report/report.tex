@@ -423,9 +423,55 @@ one: the simplest sigmoidal MLP, trained with Adam, is a faithful learner of the
 single Gaussian. Monotonicity remains a non-issue.
 
 \paragraph{Reproducibility.} \texttt{python scripts/parzen\_gaussian.py},
-\texttt{scripts/parzen\_mixtures.py}, \texttt{scripts/parzen\_random.py}, and
-\texttt{scripts/mlp\_gaussian.py} regenerate every figure and number above; the running log is in
-\texttt{docs/study.md}.
+\texttt{scripts/parzen\_mixtures.py}, \texttt{scripts/parzen\_random.py}, \texttt{scripts/mlp\_gaussian.py},
+and (Appendix~\ref{app:empirical}) \texttt{scripts/mlp\_empirical\_cdf.py} regenerate every figure and
+number above; the running log is in \texttt{docs/study.md}.
+
+\appendix
+\section{Learning the CDF directly from the empirical CDF}
+\label{app:empirical}
+
+This is a side experiment, outside the main pipeline (which trains the network on the Parzen CDF). We
+asked whether the network even needs the Parzen step, by training the same network (one hidden layer,
+width $16$, sigmoid, Adam) directly on the \emph{empirical CDF} of the samples,
+$F_n(x_i) = (\mathrm{rank}-0.5)/n$, the rawest, parameter-free estimate of the true CDF from the data.
+Single Gaussian, mean over five seeds.
+
+\begin{table}[H]
+  \centering
+  \caption{CDF gap (KS) vs truth, mean over five seeds. The network trained on the empirical CDF is
+  the most accurate, and beats even the raw empirical CDF it learns from.}
+  \label{tab:empirical}
+  \begin{tabular}{lcc}
+    \toprule
+    & $n=1000$ & $n=20000$ \\
+    \midrule
+    target: Parzen CDF (Silverman)     & 0.029 & 0.008 \\
+    target: empirical CDF              & 0.029 & 0.006 \\
+    net trained on Parzen              & 0.030 & 0.008 \\
+    \textbf{net trained on empirical CDF} & \textbf{0.020} & \textbf{0.005} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mlp_empirical_cdf.png}
+  \caption{Network trained on the empirical CDF (green) vs on the Parzen target (blue), against the
+  truth (black) and the raw empirical CDF (light gray), single Gaussian, seed $0$.}
+  \label{fig:empirical}
+\end{figure}
+
+As targets the Parzen and empirical CDFs are about equally accurate. But the network trained on the
+empirical CDF is the most accurate of all, about $30\%$ lower CDF gap than the network trained on the
+Parzen target at both budgets, and it beats even the raw empirical CDF it learns from: its built-in
+smoothness denoises the unbiased empirical target, whereas the network trained on the Parzen target
+merely reproduces it and inherits Silverman's over-smoothing bias.
+
+We do not adopt this as the pipeline. The test here is the single Gaussian only; on \emph{multimodal}
+targets the empirical CDF carries no smoothness, so the network's recovered density (its derivative)
+may turn wiggly, and there the Parzen pre-smoothing is expected to help. Confirming this on the
+mixtures is left as future work.
 
 \section*{References}
 \begin{itemize}\setlength{\itemsep}{0pt}
