@@ -218,5 +218,41 @@ changes, SGD to **Adam (fixed lr 0.03)**. Script: `scripts/mlp_gaussian.py`.
 3. **Monotonicity still not binding** (0% violations).
 
 So on the single Gaussian, the simplest-but-Adam MLP is a faithful learner of the Parzen CDF at both
-budgets. **Next (Phase B, step 3):** carry this to the mixtures / complex distributions (where the
-target is the consolidated CV / variance-matched Parzen), and probe capacity if the net then lags.
+budgets.
+
+## Phase B · side study: can the net learn the CDF directly from real data?
+
+Prompted by the question "do we even need the Parzen step?", we train the same network (1 hidden,
+width 16, sigmoid, Adam lr 0.03) directly on the **empirical CDF** of the samples, `F_n(xᵢ) =
+(rank − 0.5)/n` (the rawest, parameter-free estimate of the true CDF from real data), and compare it
+to training on the Parzen target. Single Gaussian, both budgets, **mean ± std over 5 seeds**. Script:
+`scripts/mlp_empirical_cdf.py`.
+
+| CDF gap (KS) vs truth | n=1000 | n=20000 |
+|---|---|---|
+| target: Parzen CDF (Silverman) | 0.029 ± 0.007 | 0.008 ± 0.002 |
+| target: empirical CDF | 0.029 ± 0.008 | 0.006 ± 0.002 |
+| net trained on Parzen | 0.030 ± 0.006 | 0.008 ± 0.002 |
+| **net trained on empirical CDF** | **0.020 ± 0.007** | **0.0054 ± 0.001** |
+
+![net on Parzen vs empirical](../results/mlp_empirical_cdf.png)
+
+**Findings.**
+
+1. **As targets, the Parzen and empirical CDFs are about equally good** (n=1000: 0.029 vs 0.029;
+   n=20000: empirical a touch better, 0.006 vs 0.008). The empirical CDF is unbiased but noisy; the
+   Parzen CDF is smooth but carries Silverman's over-smoothing bias.
+2. **The network trained on the empirical CDF is the clear winner** at both budgets (~32% lower KS
+   than the net trained on Parzen; margin exceeds the seed std), and it even **beats the raw empirical
+   CDF** it learns from (0.020 vs 0.029 at n=1000). Its smoothness denoises the unbiased empirical
+   target, getting the best of both worlds; the net-on-Parzen instead just reproduces its target and
+   inherits the smoothing bias (0.030 ≈ 0.029). The recovered density also recovers the peak better
+   (figure), with mass ~0.998.
+3. **Implication (provisional):** for the *neural* CDF the Parzen step looks unnecessary, even mildly
+   harmful: training directly on the empirical CDF is simpler and more accurate here.
+
+**Caveats / next.** This is the single Gaussian only, and the comparison uses the Silverman Parzen
+(which over-smooths); a fairer comparison would use the consolidated CV / variance-matched Parzen, and
+the real test is the **mixtures / complex distributions**, where the empirical CDF has no built-in
+smoothness and the net's recovered *pdf* (its derivative) may turn wiggly. We confirm there before
+concluding the Parzen step can be dropped.
