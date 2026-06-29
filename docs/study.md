@@ -256,3 +256,37 @@ to training on the Parzen target. Single Gaussian, both budgets, **mean ± std o
 the real test is the **mixtures / complex distributions**, where the empirical CDF has no built-in
 smoothness and the net's recovered *pdf* (its derivative) may turn wiggly. We confirm there before
 concluding the Parzen step can be dropped.
+
+## Phase B · step 3: the MLP on the two bimodals (with a capacity probe)
+
+Back to the main pipeline (Parzen target). Same simplest+Adam network on the two bimodals; the target
+is the consolidated Parzen window per budget (LSCV at under-2k, variance-matched at overall, from
+Phase A step 3). We probe the hidden width (16, 32, 64). Script: `scripts/mlp_mixtures.py`.
+
+CDF gap (KS) vs truth (target KS in parentheses is the ceiling):
+
+| distribution / budget | target | width 16 | width 32 | width 64 |
+|---|---|---|---|---|
+| symmetric, n=1000 (LSCV) | 0.036 | **0.036** | 0.037 | 0.037 |
+| symmetric, n=20000 (var-matched) | 0.011 | 0.012 *(viol 6%)* | **0.012** | 0.034 *(under-trained)* |
+| asymmetric, n=1000 (LSCV) | 0.037 | 0.038 | **0.038** | 0.040 |
+| asymmetric, n=20000 (var-matched) | 0.008 | 0.012 | 0.010 | **0.008** |
+
+![symmetric](../results/mlp_symmetric_bimodal.png)
+![asymmetric](../results/mlp_asymmetric_bimodal.png)
+
+**Findings.**
+
+1. **The MLP reaches its Parzen target on the bimodals too** (net KS ≈ target KS at the best width).
+   The "faithful learner" result from the single Gaussian generalises to multimodal CDFs.
+2. **Capacity matters mildly and non-monotonically.** Width 16 already suffices at the small budget;
+   at the large budget more width helps the asymmetric (width 64 matches the target exactly), but
+   **width 64 can *fail* at a fixed training budget** (symmetric: 0.034, train MSE 9e-5, under-trained,
+   the same effect as the depth-3 / width-128 blow-ups in Phase A). Bigger nets need more training.
+3. **Monotonicity finally bites.** The symmetric mixture at n=20000, width 16, produced **6%
+   monotonicity violations** (the first non-zero in the whole study); they vanish at width 32. So the
+   constraint becomes relevant in the multimodal / high-n / small-width corner, where the soft penalty,
+   Sill construction, or downstream rectification (all available) would matter.
+
+**Next (Phase B):** the random complex distributions (step 4), and addressing monotonicity where it
+appears, then the pdf-via-derivative consolidation (checkpoint 1).
