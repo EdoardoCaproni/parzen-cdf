@@ -413,3 +413,26 @@ width-32 checkpoint collapsed to a single bump). So the "faithful learner" resul
 distribution given adequate capacity/training; the remaining gap to the truth is the Parzen target's
 own (bandwidth) limit, consistent with the whole study. The simplest network just needs to grow with
 the target's sharpness.
+
+---
+
+# Step 1 closed (univariate)
+
+The univariate study is closed pending a discussion with the Professor about Step 2 (multivariate).
+State at closure:
+
+- **Parzen estimation (Phase A):** consolidated (Silverman on the Gaussian; adaptive on simple
+  bimodals; cross-validation / variance-matched on complex mixtures). Report Parts I to III.
+- **The MLP (Phase B):** a faithful regressor of its Parzen target given Adam and adequate
+  capacity/training; monotonicity and unit mass guaranteed cheaply by downstream rectification;
+  checkpoint 1 consolidated and the sharp-trimodal limit resolved by scaling. Report Parts IV to V.
+- **"Does MLP-on-Parzen have an advantage?" investigation** (`temp_analysis/`, 4 manual tests + an
+  11-angle verified workflow): **no accuracy advantage in 1D** (the net cannot beat its Parzen target;
+  a direct-likelihood model beats both). Genuine, structural advantages: free-validity via the CDF
+  route, amortization/compression, and the Sklar/copula economy; plus real-but-non-unique capabilities.
+  The honest framing is teacher-student / serving, not estimation. Open multivariate issue: the
+  N-increasing monotonicity (the 3D mixed-partial density has a large mass error without it).
+  Verdict: `temp_analysis/99_verdict.md`; Italian LaTeX report: `report/analisi_vantaggio.tex`.
+
+Next only if we proceed: fix the design of Step 2 with the Professor (joint CDF + mixed partials, or
+copula via Sklar), then enforce N-increasing monotonicity before the multivariate density.

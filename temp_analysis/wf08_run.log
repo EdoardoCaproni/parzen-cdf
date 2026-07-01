@@ -1,0 +1,22 @@
+  seed 0 done
+  seed 1 done
+  seed 2 done
+asymmetric_bimodal  train n=2000  draw n=20000  seeds=[0, 1, 2]
+KS gap (drawn empirical CDF vs TRUE CDF), mean +/- std over seeds:
+  net    inverse-CDF : 0.0332 +/- 0.0059
+  parzen inverse-CDF : 0.0279 +/- 0.0027
+  fresh true sample  : 0.0061 +/- 0.0006  (irreducible)
+
+Mean |quantile error| at [0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95]:
+  true quantiles : [-1.426 -1.02  -0.293  0.736  2.673  3.341  3.641]
+  net    err     : [0.0475 0.0621 0.0216 0.1726 0.0574 0.134  0.243 ]  (avg 0.1054)
+  parzen err     : [0.2158 0.1561 0.0298 0.1325 0.0764 0.1259 0.2378]  (avg 0.1392)
+
+Generator footprint (storage to reproduce the sampler):
+  net    : 97 float params
+  parzen : 2000 stored samples + 1 bandwidth = 2001 floats
+  compression factor net vs parzen: 20.6x fewer floats
+/home/ppianigi/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+
+figure -> temp_analysis/wf08_sampling.png

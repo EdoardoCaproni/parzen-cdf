@@ -1,0 +1,25 @@
+/home/ppianigi/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+  warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+
+=== single_gaussian  (n=500, h~0.144, hidden=(24,), epochs=1000, seeds=(0, 1)) ===
+  (a) CDF route:        pdf_MSE=0.00036+-0.00004  CDF_KS=0.0380  mass(native deriv)=0.9829  mass(after rectify)=1.00000  neg_frac(native)=0.0000
+  (b1) pdf+penalty:     pdf_MSE=0.02242+-0.00110  mass(native,penalty only)=1.0018  neg_frac=0 (softplus)
+  (b2) pdf+post-hoc:    pdf_MSE(after renorm)=0.00119+-0.00037  pdf_MSE(native)=0.00089  mass(native,no fix)=1.1110
+
+=== asymmetric_bimodal  (n=500, h~0.238, hidden=(24,), epochs=1000, seeds=(0, 1)) ===
+  (a) CDF route:        pdf_MSE=0.00230+-0.00042  CDF_KS=0.0794  mass(native deriv)=0.9493  mass(after rectify)=1.00000  neg_frac(native)=0.0000
+  (b1) pdf+penalty:     pdf_MSE=0.01668+-0.00875  mass(native,penalty only)=1.0004  neg_frac=0 (softplus)
+  (b2) pdf+post-hoc:    pdf_MSE(after renorm)=0.00432+-0.00017  pdf_MSE(native)=0.00508  mass(native,no fix)=1.3343
+
+=== asymmetric_trimodal  (n=500, h~0.320, hidden=(24,), epochs=1000, seeds=(0, 1)) ===
+  (a) CDF route:        pdf_MSE=0.00460+-0.00012  CDF_KS=0.0881  mass(native deriv)=0.9236  mass(after rectify)=1.00000  neg_frac(native)=0.0000
+  (b1) pdf+penalty:     pdf_MSE=0.01351+-0.00207  mass(native,penalty only)=0.9998  neg_frac=0 (softplus)
+  (b2) pdf+post-hoc:    pdf_MSE(after renorm)=0.00578+-0.00009  pdf_MSE(native)=0.00696  mass(native,no fix)=1.3980
+
+saved temp_analysis/wf04_pdf_vs_cdf_route.png
+
+=== HEADLINE (mean over distributions & seeds) ===
+  CDF route       mean pdf_MSE = 0.00242   mass after rectify = 1.00000 (exact by construction)
+  pdf + penalty   mean pdf_MSE = 0.01754   mass with penalty only = 1.0007
+  pdf + post-hoc  mean pdf_MSE = 0.00376   mass before any fix = 1.2811
+  (direct-pdf native mass spread tells you how badly 'integrate to 1' is violated without cheating)

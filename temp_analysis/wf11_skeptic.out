@@ -1,0 +1,52 @@
+
+===== symmetric_bimodal (n=1500, 2 seeds) =====
+  CDF accuracy vs TRUTH (KS, lower=better):
+    Silverman-Parzen (the net's label) : 0.0539
+    BEST-window Parzen (oracle window)  : 0.0197
+    MLP-on-Parzen (net vs truth)        : 0.0534
+    direct-MLE GMM (EM+BIC)             : 0.0166   (mean k=2.0)
+  pdf accuracy vs TRUTH (MSE, lower=better):
+    BEST-window Parzen pdf              : 0.00010
+    MLP-on-Parzen pdf (derivative)      : 0.00112
+    direct-MLE GMM pdf                  : 0.00005
+  the net vs its OWN target (KS, ~0 => faithful copy, no statistical value added):
+    net-CDF vs its Silverman-Parzen target : 0.0242
+
+===== asymmetric_trimodal (n=1500, 2 seeds) =====
+  CDF accuracy vs TRUTH (KS, lower=better):
+    Silverman-Parzen (the net's label) : 0.0471
+    BEST-window Parzen (oracle window)  : 0.0205
+    MLP-on-Parzen (net vs truth)        : 0.0830
+    direct-MLE GMM (EM+BIC)             : 0.0161   (mean k=3.0)
+  pdf accuracy vs TRUTH (MSE, lower=better):
+    BEST-window Parzen pdf              : 0.00017
+    MLP-on-Parzen pdf (derivative)      : 0.00314
+    direct-MLE GMM pdf                  : 0.00007
+  the net vs its OWN target (KS, ~0 => faithful copy, no statistical value added):
+    net-CDF vs its Silverman-Parzen target : 0.0505
+
+===== single_gaussian (n=1500, 2 seeds) =====
+  CDF accuracy vs TRUTH (KS, lower=better):
+    Silverman-Parzen (the net's label) : 0.0284
+    BEST-window Parzen (oracle window)  : 0.0234
+    MLP-on-Parzen (net vs truth)        : 0.0339
+    direct-MLE GMM (EM+BIC)             : 0.0179   (mean k=1.0)
+  pdf accuracy vs TRUTH (MSE, lower=better):
+    BEST-window Parzen pdf              : 0.00009
+    MLP-on-Parzen pdf (derivative)      : 0.00013
+    direct-MLE GMM pdf                  : 0.00002
+  the net vs its OWN target (KS, ~0 => faithful copy, no statistical value added):
+    net-CDF vs its Silverman-Parzen target : 0.0188
+
+===== AMORTIZATION REBUTTAL: GMM is also compact & n-independent =====
+  GMM: 9 params, query (1000 pts) CDF+pdf = 0.200 ms, n-independent, EXACT normalization, analytic inverse-CDF sampling.
+  => every structural perk claimed for the net (compactness, O(1)-in-n query, smoothness,
+     differentiability, sampling, exact constraints) a direct GMM-MLE ALSO has, plus it
+     beats the KDE and needs no KDE detour. The net's perks are perks of 'parametric smooth
+     model', not of 'regress a Parzen estimate'.
+
+
+========== VERDICT NUMBERS ==========
+symmetric_bimodal: net-CDF-KS=0.0534  GMM-CDF-KS=0.0166  (GMM beats net by +69%);  net-vs-own-target KS=0.0242 (faithful copy);  net-pdf-MSE=0.00112 vs GMM-pdf-MSE=0.00005
+asymmetric_trimodal: net-CDF-KS=0.0830  GMM-CDF-KS=0.0161  (GMM beats net by +81%);  net-vs-own-target KS=0.0505 (faithful copy);  net-pdf-MSE=0.00314 vs GMM-pdf-MSE=0.00007
+single_gaussian: net-CDF-KS=0.0339  GMM-CDF-KS=0.0179  (GMM beats net by +47%);  net-vs-own-target KS=0.0188 (faithful copy);  net-pdf-MSE=0.00013 vs GMM-pdf-MSE=0.00002

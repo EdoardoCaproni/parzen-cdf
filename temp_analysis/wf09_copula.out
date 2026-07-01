@@ -1,0 +1,30 @@
+
+=== gauss_corr0.6  (n=1200, h=0.257, rho_true=0.6, rho_emp=0.598) ===
+  marginal-net sup err (x,y) : (0.0421, 0.0352)
+  (a) JOINT neural CDF       : sup=0.2893  mse=7.32e-03
+  (b) marg + INDEP copula    : sup=0.0929  mse=9.59e-04
+  (b) marg + GAUSS copula    : sup=0.0561  mse=6.16e-04
+      GAUSS on TRUE marginals: sup=0.0003  mse=4.07e-09
+
+=== gauss_indep  (n=1200, h=0.254, rho_true=0.0, rho_emp=-0.029) ===
+  marginal-net sup err (x,y) : (0.0357, 0.0344)
+  (a) JOINT neural CDF       : sup=0.1132  mse=1.65e-03
+  (b) marg + INDEP copula    : sup=0.0651  mse=5.57e-04
+  (b) marg + GAUSS copula    : sup=0.0655  mse=5.57e-04
+      GAUSS on TRUE marginals: sup=0.0046  mse=8.02e-07
+
+=== mix_diag  (n=1200, h=0.585, rho_true=0.8, rho_emp=0.756) ===
+  marginal-net sup err (x,y) : (0.0963, 0.0886)
+  (a) JOINT neural CDF       : sup=0.3576  mse=7.85e-03
+  (b) marg + INDEP copula    : sup=0.2542  mse=6.36e-03
+  (b) marg + GAUSS copula    : sup=0.1268  mse=3.70e-03
+      GAUSS on TRUE marginals: sup=0.0908  mse=2.46e-04
+
+=== mix_cross  (n=1200, h=0.355, rho_true=0.0, rho_emp=0.028) ===
+  marginal-net sup err (x,y) : (0.0319, 0.035)
+  (a) JOINT neural CDF       : sup=0.0844  mse=7.87e-04
+  (b) marg + INDEP copula    : sup=0.0629  mse=6.28e-04
+  (b) marg + GAUSS copula    : sup=0.0625  mse=6.38e-04
+      GAUSS on TRUE marginals: sup=0.0268  mse=4.50e-05
+
+[self-check] gauss_corr0.6: gauss-copula sup <= joint sup ?  True
