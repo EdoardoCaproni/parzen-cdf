@@ -48,3 +48,10 @@ def test_parzen_pdf_accepts_per_sample_bandwidth(samples) -> None:
     pdf = parzen.parzen_pdf(grid, samples, h)
     assert np.all(pdf >= 0)
     assert abs(metrics.integrates_to_one(pdf, grid) - 1.0) < 1e-2
+
+
+def test_sqrt_n_schedule(samples) -> None:
+    assert parzen.sqrt_n_bandwidth(samples) == pytest.approx(1.0 / np.sqrt(samples.size))
+    assert parzen.sqrt_n_bandwidth(samples, h1=3.0) == pytest.approx(3.0 / np.sqrt(samples.size))
+    with pytest.raises(ValueError):
+        parzen.sqrt_n_bandwidth(samples, h1=0.0)

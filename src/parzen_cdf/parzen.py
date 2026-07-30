@@ -1,30 +1,118 @@
-"""Parzen-window estimation with logistic kernels.
+"""Parzen-window estimation with a registry of window shapes (kernels).
 
-The logistic kernel is chosen because its integral is the logistic sigmoid, giving a *closed-form*
-CDF estimate. With samples ``x_1..x_n``, bandwidth ``h`` and ``z_i = (x - x_i) / h``::
+The default window is the **logistic** kernel, chosen because its integral is the logistic
+sigmoid, giving a *closed-form* CDF estimate. With samples ``x_1..x_n``, window size ``h`` and
+``z_i = (x - x_i) / h``::
 
-    F_hat(x) = (1/n)  * sum_i sigmoid(z_i)
-    f_hat(x) = (1/nh) * sum_i sigmoid(z_i) * (1 - sigmoid(z_i))   # = dF_hat/dx
+    F_hat(x) = (1/n)  * sum_i K(z_i)          # K = the window's CDF (sigmoid for logistic)
+    f_hat(x) = (1/nh) * sum_i k(z_i)          # k = the window's pdf  (= dK/du)
 
-``F_hat`` is smooth, strictly increasing, and valued in (0, 1) -- an ideal regression target, and
-``f_hat`` is exactly its derivative.
+``F_hat`` is smooth (for smooth windows), non-decreasing, and valued in [0, 1] -- an ideal
+regression target -- and ``f_hat`` is exactly its derivative.
 
-Note on the bandwidth: ``silverman_bandwidth`` uses Silverman's rule, whose constant is derived
-for the *Gaussian* kernel (variance 1). The standard logistic kernel has variance ``pi**2 / 3``,
-so the same ``h`` smooths more here; treat the returned value as a starting point and tune ``h``.
+Other window shapes live in :data:`KERNELS` (gaussian, box, epanechnikov, triangular); all
+estimator and selector functions accept a ``kernel`` name and default to ``"logistic"``.
+
+Note on the window size: ``silverman_bandwidth`` uses Silverman's rule, whose constant is
+derived for the *Gaussian* kernel (variance 1). A kernel with std ``s`` smooths ``s`` times
+more at the same ``h``; ``variance_matched_bandwidth`` divides by ``s`` to correct for this
+(a no-op for the gaussian window).
 """
 
 from __future__ import annotations
 
+from typing import Callable, NamedTuple
+
 import numpy as np
-from scipy.special import expit
+from scipy.special import erf, expit
 
 # ``np.trapezoid`` is the NumPy >= 2.0 name for ``np.trapz`` (still present, deprecated, in 2.x).
 _trapezoid = getattr(np, "trapezoid", np.trapz)
 
-# Standard-logistic spread, used to variance-match the bandwidth to a Gaussian kernel.
-LOGISTIC_KERNEL_STD = float(np.sqrt(np.pi**2 / 3))      # ~= 1.8138
-VARIANCE_MATCH_SCALE = 1.0 / LOGISTIC_KERNEL_STD        # = sqrt(3)/pi ~= 0.5513
+
+# --------------------------------------------------------------------------------------------------
+# Window shapes. Each kernel is (CDF K(u), pdf k(u) = K'(u), std of the kernel as a density).
+# To add a shape, append an entry here; every estimator and selector picks it up by name.
+# --------------------------------------------------------------------------------------------------
+
+
+class Kernel(NamedTuple):
+    cdf: Callable[[np.ndarray], np.ndarray]
+    pdf: Callable[[np.ndarray], np.ndarray]
+    std: float
+
+
+def _logistic_pdf(u: np.ndarray) -> np.ndarray:
+    s = expit(u)
+    return s * (1.0 - s)
+
+
+def _gaussian_cdf(u: np.ndarray) -> np.ndarray:
+    return 0.5 * (1.0 + erf(u / np.sqrt(2.0)))
+
+
+def _gaussian_pdf(u: np.ndarray) -> np.ndarray:
+    return np.exp(-0.5 * u**2) / np.sqrt(2.0 * np.pi)
+
+
+def _box_cdf(u: np.ndarray) -> np.ndarray:
+    return np.clip((u + 1.0) / 2.0, 0.0, 1.0)
+
+
+def _box_pdf(u: np.ndarray) -> np.ndarray:
+    return np.where(np.abs(u) <= 1.0, 0.5, 0.0)
+
+
+def _epanechnikov_cdf(u: np.ndarray) -> np.ndarray:
+    t = np.clip(u, -1.0, 1.0)
+    return 0.5 + 0.75 * t - 0.25 * t**3
+
+
+def _epanechnikov_pdf(u: np.ndarray) -> np.ndarray:
+    return np.where(np.abs(u) <= 1.0, 0.75 * (1.0 - u**2), 0.0)
+
+
+def _triangular_cdf(u: np.ndarray) -> np.ndarray:
+    t = np.clip(u, -1.0, 1.0)
+    return np.where(t < 0.0, 0.5 * (t + 1.0) ** 2, 1.0 - 0.5 * (1.0 - t) ** 2)
+
+
+def _triangular_pdf(u: np.ndarray) -> np.ndarray:
+    return np.maximum(1.0 - np.abs(u), 0.0)
+
+
+KERNELS: dict[str, Kernel] = {
+    "logistic": Kernel(expit, _logistic_pdf, float(np.sqrt(np.pi**2 / 3))),
+    "gaussian": Kernel(_gaussian_cdf, _gaussian_pdf, 1.0),
+    "box": Kernel(_box_cdf, _box_pdf, float(1 / np.sqrt(3))),
+    "epanechnikov": Kernel(_epanechnikov_cdf, _epanechnikov_pdf, float(1 / np.sqrt(5))),
+    "triangular": Kernel(_triangular_cdf, _triangular_pdf, float(1 / np.sqrt(6))),
+}
+
+# Standard-logistic spread, used to variance-match the window size to a Gaussian kernel.
+LOGISTIC_KERNEL_STD = KERNELS["logistic"].std                   # ~= 1.8138
+VARIANCE_MATCH_SCALE = 1.0 / LOGISTIC_KERNEL_STD                # = sqrt(3)/pi ~= 0.5513
+
+
+def _kernel(name: str) -> Kernel:
+    try:
+        return KERNELS[name]
+    except KeyError:
+        raise ValueError(f"unknown kernel {name!r}; choose from {list(KERNELS)}") from None
+
+
+def sqrt_n_bandwidth(samples: np.ndarray, h1: float = 1.0) -> float:
+    """The classic fixed (deterministic) consistency schedule: ``h_n = h1 / sqrt(n)``.
+
+    ``h1`` is chosen once; the window then shrinks with the sample count. This is the
+    course's reference rule (Duda & Hart); see the study for the calibration of ``h1``.
+    """
+    n = np.asarray(samples).size
+    if n < 1:
+        raise ValueError("need at least 1 sample")
+    if h1 <= 0:
+        raise ValueError("h1 must be positive")
+    return float(h1 / np.sqrt(n))
 
 
 def silverman_bandwidth(samples: np.ndarray) -> float:
@@ -59,24 +147,46 @@ def _scaled_diffs(x: np.ndarray, samples: np.ndarray, h) -> np.ndarray:
     return (x[..., None] - samples) / h
 
 
-def parzen_cdf(x: np.ndarray, samples: np.ndarray, h) -> np.ndarray:
-    """Logistic-kernel Parzen CDF estimate evaluated at ``x``.
+# Cap the (len(x), n) temporaries at ~160 MB of float64: evaluating at the samples themselves
+# (adaptive pilot, training labels) would otherwise allocate an n x n matrix (3.2 GB at n=20k).
+_CHUNK_ELEMENTS = 20_000_000
 
-    Implements ``(1/n) * sum_i sigmoid((x - x_i) / h_i)``. ``h`` is a scalar or a per-sample array.
+
+def _chunked_eval(fn, x: np.ndarray, n: int) -> np.ndarray:
+    """Apply ``fn`` (a 1-D-batch evaluator) over row-chunks of ``x``, bounding peak memory."""
+    x = np.asarray(x, dtype=float)
+    flat = x.reshape(-1)
+    rows = max(1, _CHUNK_ELEMENTS // max(n, 1))
+    if flat.size <= rows:
+        return fn(flat).reshape(x.shape)
+    out = np.empty(flat.size)
+    for i in range(0, flat.size, rows):
+        out[i:i + rows] = fn(flat[i:i + rows])
+    return out.reshape(x.shape)
+
+
+def parzen_cdf(x: np.ndarray, samples: np.ndarray, h, kernel: str = "logistic") -> np.ndarray:
+    """Parzen CDF estimate at ``x``: ``(1/n) * sum_i K((x - x_i) / h_i)``.
+
+    ``h`` is a scalar or a per-sample array; ``kernel`` names a window shape in :data:`KERNELS`.
     """
-    z = _scaled_diffs(x, samples, h)
-    return expit(z).mean(axis=-1)
+    k = _kernel(kernel)
+    samples = np.asarray(samples, dtype=float)
+    return _chunked_eval(lambda xc: k.cdf(_scaled_diffs(xc, samples, h)).mean(axis=-1),
+                         x, samples.size)
 
 
-def parzen_pdf(x: np.ndarray, samples: np.ndarray, h) -> np.ndarray:
-    """Logistic-kernel Parzen density estimate at ``x`` (the exact derivative of ``parzen_cdf``).
+def parzen_pdf(x: np.ndarray, samples: np.ndarray, h, kernel: str = "logistic") -> np.ndarray:
+    """Parzen density estimate at ``x`` (the exact derivative of ``parzen_cdf``).
 
-    Implements ``(1/n) * sum_i sigmoid(z_i) * (1 - sigmoid(z_i)) / h_i`` with ``z_i = (x - x_i)/h_i``.
-    Dividing by ``h`` *inside* the sum keeps it correct when ``h`` is a per-sample array.
+    Implements ``(1/n) * sum_i k(z_i) / h_i`` with ``z_i = (x - x_i)/h_i``. Dividing by ``h``
+    *inside* the sum keeps it correct when ``h`` is a per-sample array.
     """
-    z = _scaled_diffs(x, samples, h)
-    s = expit(z)
-    return (s * (1.0 - s) / np.asarray(h, dtype=float)).mean(axis=-1)
+    k = _kernel(kernel)
+    samples = np.asarray(samples, dtype=float)
+    h_arr = np.asarray(h, dtype=float)
+    return _chunked_eval(lambda xc: (k.pdf(_scaled_diffs(xc, samples, h)) / h_arr).mean(axis=-1),
+                         x, samples.size)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -86,10 +196,11 @@ def parzen_pdf(x: np.ndarray, samples: np.ndarray, h) -> np.ndarray:
 # --------------------------------------------------------------------------------------------------
 
 
-def variance_matched_bandwidth(samples: np.ndarray) -> float:
-    """Silverman's bandwidth rescaled so the logistic kernel matches a unit-variance (Gaussian)
-    kernel: ``h_silverman * sqrt(3)/pi``. A principled, truth-free correction for over-smoothing."""
-    return silverman_bandwidth(samples) * VARIANCE_MATCH_SCALE
+def variance_matched_bandwidth(samples: np.ndarray, kernel: str = "logistic") -> float:
+    """Silverman's bandwidth rescaled so the chosen kernel matches a unit-variance (Gaussian)
+    kernel: ``h_silverman / kernel_std``. A principled, truth-free correction for over-smoothing
+    (identity for the gaussian window)."""
+    return silverman_bandwidth(samples) / _kernel(kernel).std
 
 
 def candidate_bandwidths(samples: np.ndarray, n_grid: int = 40,
@@ -99,22 +210,17 @@ def candidate_bandwidths(samples: np.ndarray, n_grid: int = 40,
     return h0 * np.geomspace(lo_scale, hi_scale, n_grid)
 
 
-def _logistic_density(u: np.ndarray) -> np.ndarray:
-    """Standard logistic density ``k(u) = sigmoid(u) * (1 - sigmoid(u))``."""
-    s = expit(u)
-    return s * (1.0 - s)
-
-
-def _loo_density_at_samples(samples: np.ndarray, h: float) -> np.ndarray:
+def _loo_density_at_samples(samples: np.ndarray, h: float, kernel: str = "logistic") -> np.ndarray:
     """Leave-one-out density ``f_hat_{-i}(x_i)`` at each sample (excludes its own kernel)."""
     n = samples.size
     diffs = samples[:, None] - samples[None, :]      # (n, n)
-    k = _logistic_density(diffs / h)
+    k = _kernel(kernel).pdf(diffs / h)
     np.fill_diagonal(k, 0.0)
     return k.sum(axis=1) / ((n - 1) * h)
 
 
-def likelihood_cv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None = None) -> float:
+def likelihood_cv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None = None,
+                            kernel: str = "logistic") -> float:
     """Leave-one-out maximum-likelihood CV: pick ``h`` maximizing ``mean_i log f_hat_{-i}(x_i)``.
 
     Truth-free; targets a Kullback-Leibler objective. Only evaluates the kernel (no self-convolution).
@@ -124,7 +230,7 @@ def likelihood_cv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None =
         candidates = candidate_bandwidths(samples)
     best_h, best_score = float(candidates[0]), -np.inf
     for h in candidates:
-        f_loo = _loo_density_at_samples(samples, h)
+        f_loo = _loo_density_at_samples(samples, h, kernel)
         score = np.log(np.maximum(f_loo, 1e-300)).mean()
         if score > best_score:
             best_score, best_h = score, float(h)
@@ -132,7 +238,7 @@ def likelihood_cv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None =
 
 
 def lscv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None = None,
-                   grid: np.ndarray | None = None) -> float:
+                   grid: np.ndarray | None = None, kernel: str = "logistic") -> float:
     """Least-squares (unbiased) CV: minimize ``int f_hat^2 - (2/n) sum_i f_hat_{-i}(x_i)``.
 
     This is an unbiased estimate of the integrated squared error up to an ``h``-independent constant,
@@ -146,24 +252,25 @@ def lscv_bandwidth(samples: np.ndarray, candidates: np.ndarray | None = None,
         grid = np.linspace(samples.min() - 5 * h0, samples.max() + 5 * h0, 4000)
     best_h, best_score = float(candidates[0]), np.inf
     for h in candidates:
-        f = parzen_pdf(grid, samples, h)
+        f = parzen_pdf(grid, samples, h, kernel)
         term1 = _trapezoid(f**2, grid)
-        term2 = 2.0 * _loo_density_at_samples(samples, h).mean()
+        term2 = 2.0 * _loo_density_at_samples(samples, h, kernel).mean()
         score = term1 - term2
         if score < best_score:
             best_score, best_h = score, float(h)
     return best_h
 
 
-def adaptive_bandwidths(samples: np.ndarray, pilot_h: float | None = None) -> np.ndarray:
+def adaptive_bandwidths(samples: np.ndarray, pilot_h: float | None = None,
+                        kernel: str = "logistic") -> np.ndarray:
     """Abramson variable bandwidth: ``h_i = pilot_h * (f_pilot(x_i) / g)^(-1/2)`` with ``g`` the
     geometric mean of the pilot density at the samples. Smaller where data is dense, wider in the
     tails -- the structural fix for densities with disparate scales. Returns a length-``n`` array.
     """
     samples = np.asarray(samples, dtype=float)
     if pilot_h is None:
-        pilot_h = variance_matched_bandwidth(samples)
-    f_pilot = parzen_pdf(samples, samples, pilot_h)
+        pilot_h = variance_matched_bandwidth(samples, kernel)
+    f_pilot = parzen_pdf(samples, samples, pilot_h, kernel)
     log_g = np.log(np.maximum(f_pilot, 1e-300)).mean()
     g = np.exp(log_g)
     lam = (np.maximum(f_pilot, 1e-300) / g) ** (-0.5)
