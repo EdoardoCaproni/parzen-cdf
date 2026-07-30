@@ -43,3 +43,5 @@ report/build.log
 .DS_Store
 .vscode/
 .idea/
+app/checkpoints/
+nohup.out

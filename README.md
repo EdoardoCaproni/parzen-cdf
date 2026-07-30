@@ -1,50 +1,76 @@
 # Parzen CDF
 
 Neural estimation of a cumulative distribution function (CDF) and its density (pdf), using
-Parzen-window estimates as training targets.
+Parzen-window estimates as training targets. University project.
 
-Master's project. The core idea: a Parzen-window estimator gives a smooth, closed-form CDF
-estimate; we train an MLP to regress that CDF under a monotonicity constraint, then obtain the
-pdf as the derivative of the trained network. We work first in one dimension, then extend to N.
+The pipeline: a **Parzen window with logistic kernels** gives a smooth, closed-form CDF
+estimate `F̂(x) = (1/n) Σ σ((x − xᵢ)/h)`. An MLP is trained to regress that CDF **on the data
+points only** (inputs `xᵢ`, labels `F̂(xᵢ)` — no collocation, no augmentation), the pdf is
+recovered as the derivative of the trained network, and a **downstream rectification**
+(cumulative max + rescale) guarantees a monotone CDF and a unit-mass density.
 
-## Roadmap
+## Status
 
-**Step 1 — Univariate.**
-1. Sample synthetic data from a *known* pdf (a non-trivial mixture of Gaussians).
-2. Estimate the CDF with **Parzen windows using logistic kernels**, whose integral is the
-   logistic sigmoid — giving a closed-form CDF estimate `F̂(x) = (1/n) Σ σ((x − xᵢ)/h)`.
-3. Build a training set of `(x, F̂(x))` pairs.
-4. Train an MLP to regress the CDF, with a **monotonicity constraint in the loss**.
-5. Recover the pdf as the derivative of the network output (clamping negatives to zero if needed).
+- **Phase A (Parzen window): redone and consolidated** after the professor's review exposed a
+  window-size scale error in the first pass. The corrected study, under the deterministic
+  schedule **h_n = h₁/√n** and budgets capped at n = 2000, is in
+  [`docs/study2.md`](docs/study2.md) (the original run is kept in
+  [`docs/study.md`](docs/study.md) as the historical record).
+- **Phase B (the MLP): redone with the Parzen-Neural-Network recipe** (leave-one-out targets,
+  sharp teacher window, small-capacity net): trained on the sample points only, the MLP
+  **generalizes a better density estimate than the Parzen Window it learns from** (~2× lower
+  pdf ISE across the battery, 30/33 cases), and at the baseline n = 500 it beats the best
+  truth-free Parzen on both metrics. See Phase B in [`docs/study2.md`](docs/study2.md).
+- **Step 2 (multivariate): pending** a discussion with the professor. The known blocker is
+  *N-increasing* monotonicity: 1-D rectification does not make a joint CDF valid, and the
+  3-D mixed-partial density shows a ~70% mass error without it.
 
-**Step 2 — Multivariate.**
-1. Synthetic data on an N-dimensional domain (N grows as experiments succeed).
-2. N-D (product) logistic Parzen windows for the joint CDF.
-3. Training set and MLP as before, re-imposing monotonicity.
-4. Recover the joint pdf via mixed partial derivatives, or the **copula** (Sklar's theorem).
+## Phase A results, in brief (corrected study)
 
-See [docs/references.md](docs/references.md) for the bibliography.
+Logistic-window Parzen with the schedule **h_n = 1.5·σ̂/√n** (the "σ-rule", calibrated by
+stressing h₁ across three orders of magnitude on a ladder of shapes) sits at the statistical
+floor E[KS] ≈ 0.87/√n on every distribution tested, already at **n = 500**:
 
-## Results so far (Step 1)
+| selector (battery of 10 random mixtures) | n=500 | n=1000 | n=2000 |
+|---|---|---|---|
+| σ-rule h₁ = 1.5·σ̂ (zero cost) | 0.031 | 0.025 | 0.015 |
+| LSCV (O(n²)) | 0.030 | 0.023 | 0.015 |
+| Silverman (deprecated: kernel-scale mismatch) | 0.078 | 0.068 | 0.057 |
+| oracle fixed-h (truth-peeking bound) | 0.028 | 0.022 | 0.014 |
+| empirical CDF | 0.036 | 0.028 | 0.018 |
 
-A working univariate pipeline, evaluated against the *known* truth on a ladder of Gaussian
-mixtures:
+**Phase B — the MLP.** With Adam and capacity/training scaled to the target's sharpness, the
+network is a **faithful regressor of its Parzen target** on every distribution tested
+(single Gaussian, bimodals, 10 random mixtures, and the sharp trimodal after a capacity
+push). For monotonicity, the soft penalty fails and the Sill construction costs accuracy;
+**downstream rectification wins** (0% violations, mass exactly 1, negligible KS cost).
+The consolidated end-to-end run is [`scripts/checkpoint1.py`](scripts/checkpoint1.py):
 
-- **Logistic Parzen CDF/pdf estimator** with a closed-form CDF and a Silverman-rule bandwidth.
-- **Neural CDF regressor** trained on uniform collocation targets, comparing three monotonicity
-  strategies — unconstrained baseline, a soft derivative penalty, and a monotone-by-construction
-  (Sill 1998) network — with the pdf recovered by differentiating the learned CDF.
-- **Bandwidth study**: Silverman over-smooths multimodal densities; data-driven cross-validation
-  selectors recover most of the gap to an oracle bandwidth, and an adaptive (Abramson) bandwidth
-  wins on disparate-scale densities.
+![Checkpoint 1](results/checkpoint1.png)
 
-The neural CDF/pdf fit on the asymmetric trimodal mixture, and the bandwidth-selector comparison:
+**Does MLP-on-Parzen have an advantage?** A dedicated investigation
+([`temp_analysis/`](temp_analysis/), verdict in
+[`temp_analysis/99_verdict.md`](temp_analysis/99_verdict.md), Italian report in
+[`report/analisi_vantaggio.tex`](report/analisi_vantaggio.tex)) found **no accuracy
+advantage in 1-D**: the net cannot beat the Parzen target it regresses, and a
+direct-likelihood model (GMM/flow) beats both. The genuine advantages are structural:
+guaranteed validity via the CDF route (mass = 1, non-negative pdf, for one cheap rectify),
+constant-cost n-independent querying with ~1000× compression, and the Sklar/copula modeling
+economy. Honest framing: **distillation/serving of a trusted KDE**, not better estimation.
 
-![Neural CDF and pdf on the trimodal mixture](results/results_asymmetric_trimodal.png)
-![Bandwidth selectors vs the oracle](results/bandwidth_selectors_study.png)
+## Interactive lab
 
-All figures are reproducible via the scripts in [`scripts/`](scripts/) (e.g.
-`python scripts/generate_results.py`).
+An educational web app to build mixture densities, watch the Parzen estimate assemble
+live, and train the neural CDF regressor with live charts and a network weight view:
+
+```bash
+pip install -r requirements.txt
+python app/server.py            # then open http://localhost:8000
+```
+
+See [`app/`](app/) for details. A fully static, dependency-free port of the app is published
+separately as [parzen-lab](https://github.com/Gianeh/parzen-lab), live at
+[gianeh.github.io/parzen-lab](https://gianeh.github.io/parzen-lab/).
 
 ## Setup
 
@@ -59,9 +85,15 @@ pytest          # sanity checks
 ## Layout
 
 ```
-src/parzen_cdf/   library code (data, parzen, models, training, metrics)
-notebooks/        exploratory experiments
-scripts/          reproducible runs
+src/parzen_cdf/   library (data, parzen, models, training, metrics)
+scripts/          reproducible experiment runs (Phase A, Phase B, checkpoint 1)
 tests/            sanity checks
-docs/             references and notes
+docs/             study log and references
+report/           LaTeX reports (main report + advantage analysis)
+temp_analysis/    the "is there an advantage?" investigation (scripts + findings)
+results/          generated figures (regenerable via the scripts)
+app/              interactive educational lab (FastAPI + browser UI)
+old/              earlier exploratory pass (kept for history)
 ```
+
+See [docs/references.md](docs/references.md) for the bibliography.

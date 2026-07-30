@@ -10,3 +10,7 @@ scikit-learn          # Gaussian-mixture data generation and baseline comparison
 # Exploration & testing
 jupyter
 pytest
+
+# Interactive lab (app/)
+fastapi
+uvicorn[standard]
