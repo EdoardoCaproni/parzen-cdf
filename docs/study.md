@@ -1,3 +1,12 @@
+> **SUPERSEDED (2026-07-03).** The Professor's review exposed a window-size scale error that
+> inflates every "fixed" and "Silverman" number below (Silverman's constant assumes a
+> unit-variance kernel; the logistic window has std π/√3 ≈ 1.81, so those rows over-smooth by
+> ~1.8×, and the "fixed h = 1.0" baseline never shrinks with n, violating consistency). The
+> estimator formulation and the sampling were verified correct
+> (`temp_analysis/verify_formulation.py`). The corrected Phase A, under the course's
+> h_n = h₁/√n schedule and budgets capped at n = 2000, lives in **[study2.md](study2.md)**.
+> This file is kept as the historical record.
+
 # Didactic study — estimating a CDF, one step at a time
 
 A deliberately **didactic** rebuild: we start from the simplest possible case and add one ingredient
