@@ -9,6 +9,11 @@ import numpy as np
 
 from parzen_cdf import parzen
 
+# ``np.trapezoid`` e' il nome NumPy >= 2.0 di ``np.trapz`` (rimosso in NumPy 2.4).
+# NB: il guard deve essere PIGRO. ``getattr(np, "trapezoid", np.trapz)`` valuterebbe
+# ``np.trapz`` comunque, sollevando AttributeError proprio dove non serve.
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+
 BUDGETS = (500, 1000, 2000)
 SEEDS = range(10)
 
@@ -34,7 +39,7 @@ def ks(a: np.ndarray, b: np.ndarray) -> float:
 
 def ise(pdf_est: np.ndarray, pdf_true: np.ndarray, grid: np.ndarray) -> float:
     d2 = (pdf_est - pdf_true) ** 2
-    return float(np.trapz(d2, grid))
+    return float(_trapezoid(d2, grid))
 
 
 def eval_window(mix, grid, truth_cdf, truth_pdf, samples, h) -> dict:

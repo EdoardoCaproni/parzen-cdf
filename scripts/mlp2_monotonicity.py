@@ -54,7 +54,7 @@ def evaluate(model, rectify):
         cdf = raw
         pdf = np.clip(np.gradient(raw, GRID), 0.0, None)
     return {"ks": ks(cdf, T_CDF), "ise": ise(pdf, T_PDF, GRID),
-            "viol": viol, "mass": float(np.trapz(pdf, GRID))}
+            "viol": viol, "mass": float((np.trapezoid if hasattr(np, 'trapezoid') else np.trapz)(pdf, GRID))}
 
 
 results = {}

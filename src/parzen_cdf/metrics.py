@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import numpy as np
 
-# ``np.trapezoid`` is the NumPy >= 2.0 name for ``np.trapz`` (still present, deprecated, in 2.x).
-_trapezoid = getattr(np, "trapezoid", np.trapz)
+# ``np.trapezoid`` e' il nome NumPy >= 2.0 di ``np.trapz`` (rimosso in NumPy 2.4).
+# NB: il guard deve essere PIGRO. ``getattr(np, "trapezoid", np.trapz)`` valuterebbe
+# ``np.trapz`` comunque, sollevando AttributeError proprio dove non serve.
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
 
 
 def ks_distance(cdf_true: np.ndarray, cdf_est: np.ndarray) -> float:
