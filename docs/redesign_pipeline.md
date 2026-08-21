@@ -266,3 +266,135 @@ separazione è strutturale e verificabile a colpo d'occhio, invece che affidata 
 > invece escluso il confronto fra CDF stimata e CDF empirica, che risulta anti-correlato con
 > l'errore vero (−0.03): premia sistematicamente le finestre più strette, perché al tendere a
 > zero della finestra lo stimatore converge alla CDF empirica per costruzione.
+
+---
+
+## 8. Specifiche di dettaglio
+
+Le decisioni D-xx dicono *cosa* fare; qui si fissa *come*, al livello di dettaglio necessario
+perché qualcun altro possa implementare senza chiedere nulla. Criterio adottato: una specifica
+è completa quando si riesce a scriverne il test **prima** del corpo della funzione.
+
+### S1 — Perimetro del refactor: il vecchio non si tocca
+
+**Il percorso nuovo si affianca a quello esistente, non lo sostituisce.** `rectify_cdf` ha
+sette chiamanti fra script e app; sono tutti script che documentano studi già fatti
+(`checkpoint1.py`, `mlp_*.py`, `mlp2_*.py`) e vanno lasciati funzionanti così come sono. Il
+loro valore è di essere la traccia riproducibile di ciò che è stato misurato.
+
+Conseguenze:
+- `rectify_cdf`, `density_from_cdf`, `monotonicity_penalty`, `CDFNet` **restano in libreria**,
+  con una nota nella docstring che rimanda alla decisione che li ha superati;
+- il percorso nuovo (`MixtureCDFNet` → `run_from_samples`) è **additivo**;
+- l'app si allinea dopo (P-05), non ora.
+
+Questo limita il raggio d'azione: nessuna riga esistente cambia comportamento.
+
+### S2 — `MixtureCDFNet` in `src/parzen_cdf/models.py`
+
+Firma, invarianti e responsabilità:
+
+| elemento | specifica |
+|---|---|
+| costruttore | `MixtureCDFNet(n_components: int = 12)`; J = 12 da D-08 rivista |
+| parametri | `alpha`, `b`, `u`, ciascuno di forma `(J,)` |
+| buffer | `mu`, `sd` scalari: statistiche di standardizzazione, nel `state_dict` |
+| `init_from_samples(x)` | centri sui quantili di z, larghezze pari al passo fra centri, pesi uniformi; **deterministica dato x**, non consuma RNG |
+| `forward(x)` | CDF, accetta qualunque forma, restituisce `(n,)` |
+| `pdf(x)` | densità in forma chiusa, divisa per `sd` |
+| invarianti | F(±∞) = 0/1 esatti; F non decrescente; pdf ≥ 0; ∫pdf = 1 — **per ogni valore dei parametri** |
+
+`init_from_samples` non deve consumare numeri casuali: è ciò che rende il modello
+riproducibile senza dipendere dal seme globale, e chiude B8 per questa classe per costruzione
+e non per disciplina.
+
+### S3 — Addestramento: `fit_mixture_cdf` in `training.py`
+
+`train_cdf` resta per `CDFNet`. Per la classe nuova serve una funzione separata, perché le
+penalità di monotonia e curvatura non hanno più oggetto (D-10, D-11) e lasciarle disponibili
+inviterebbe a riusarle.
+
+```python
+def fit_mixture_cdf(x, y, *, n_components=12, epochs=6000, lr=0.03, seed=0):
+    """Costruisce e addestra. Il seme e' applicato PRIMA della costruzione."""
+```
+
+Restituisce `(model, history)`. Nessuna penalità, nessun clamp, nessuna rettifica: la
+validità è dell'architettura.
+
+### S4 — `Estimate`: l'oggetto consegnato
+
+```python
+@dataclass
+class Estimate:
+    model: MixtureCDFNet
+    h: float                  # finestra scelta da LSCV
+    h1: float                 # h * sqrt(n): la forma h_n = h1/sqrt(n) richiesta
+    samples: np.ndarray
+
+    def cdf(self, t) -> np.ndarray      # valutabile in qualunque punto di R
+    def pdf(self, t) -> np.ndarray
+    def domain(self, pad: float = 3.0) -> tuple[float, float]
+    def diagnostics(self) -> dict
+    def save(self, path) / load(path)   # state_dict + h + h1 + samples
+```
+
+Punto centrale: `cdf` e `pdf` sono **funzioni**, non tabelle. Il dominio serve solo a
+disegnare e a integrare, ed è un metodo dell'oggetto, non un suo attributo: non fa parte
+dello stimatore.
+
+### S5 — Diagnostica truth-free: schema fisso
+
+`diagnostics()` restituisce un dizionario con queste chiavi, sempre le stesse, così la CLI e
+il report leggono la stessa struttura:
+
+```json
+{
+  "n": 500,
+  "h": 0.0995,
+  "h1": 2.2249,
+  "h_riferimento": {"silverman": 0.5814, "variance_matched": 0.3205, "rapporto_max": 5.84},
+  "lscv_score": -0.2341,
+  "loo_loglik": -1.8703,
+  "massa_sul_dominio": 0.99982,
+  "dominio": [-4.12, 6.31],
+  "violazioni_monotonia": 0,
+  "avvisi": []
+}
+```
+
+Regole:
+- `lscv_score` e `loo_loglik` sono i due indicatori con rho 0.94 e 0.86 rispetto all'errore
+  vero (D-13). Vanno riportati sempre;
+- `massa_sul_dominio` è **riportata, non imposta** (D-14 sulla massa): un valore diverso da 1
+  segnala un dominio stretto, ed è un'informazione;
+- `violazioni_monotonia` deve valere 0: se non lo è, è un bug dell'architettura, non un
+  fenomeno da correggere;
+- **il KS contro la ECDF non compare e non deve comparire** (D-14). Il divieto va scritto
+  nella docstring del modulo, con il motivo, per impedirne la reintroduzione;
+- `avvisi` raccoglie le condizioni da segnalare: h al bordo della griglia dei candidati,
+  rapporto fra selettori superiore a 3, massa fuori da [0.99, 1.01].
+
+### S6 — Tolleranze nei test
+
+PyTorch lavora in float32: un ULP attorno a 0.5 vale 6.0e-08. Le soglie vanno fissate di
+conseguenza, altrimenti si producono falsi allarmi (`[V1]` ne ha prodotto uno).
+
+| proprietà | tolleranza |
+|---|---|
+| monotonia (`diff >= -tol`) | **1e-6** |
+| pdf in forma chiusa contro differenza finita | 1e-3 (domina l'errore della differenza finita) |
+| F(±10⁶) contro 0 e 1 | esatta (`== 0.0`, `== 1.0`) |
+| massa su dominio largo | 1e-3 |
+| equivarianza per traslazione/scala | 1e-3 (rumore amplificato dall'ottimizzatore, vedi `[E7]`) |
+
+### S7 — Criteri di accettazione del refactor
+
+Il refactor è concluso quando:
+
+1. i test di caratterizzazione passano **invariati** (nessun cambiamento accidentale);
+2. ogni decisione da D-07 a D-15 ha un test che è stato **visto fallire** prima di passare;
+3. `run_from_samples` gira su un vettore di numeri senza che esista alcun oggetto `Mixture`;
+4. `grep -r "Mixture" src/parzen_cdf/` non compare nel percorso di stima, solo in `data.py` e
+   `evaluation.py`;
+5. gli script esistenti continuano a funzionare come prima.
