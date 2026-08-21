@@ -1,0 +1,18 @@
+       h    max|cdf_mia - cdf_repo|    max|pdf_mia - pdf_repo|
+    0.02                  0.000e+00                  2.220e-16
+    0.10                  0.000e+00                  1.110e-16
+    0.50                  0.000e+00                  0.000e+00
+    2.00                  0.000e+00                  0.000e+00
+
+selettori: la mia LSCV contro quella del repo (griglie di candidati diverse per
+costruzione, quindi ci si attende accordo di ordine di grandezza, non identita')
+   seme 0: mia 0.2005   repo 0.1941   rapporto 1.033
+   seme 1: mia 0.1529   repo 0.1607   rapporto 0.951
+   seme 2: mia 0.2002   repo 0.2094   rapporto 0.956
+   seme 3: mia 0.0762   repo 0.0705   rapporto 1.081
+   seme 4: mia 0.0902   repo 0.0896   rapporto 1.006
+
+Silverman: il repo NON e' variance-matched al kernel logistico, la mia si.
+   seme 0: mia 0.1453   repo 0.2635   repo/mia 1.814   (atteso ~1.814 se differisce solo per K_STD)
+   seme 1: mia 0.1298   repo 0.2355   repo/mia 1.814   (atteso ~1.814 se differisce solo per K_STD)
+   seme 2: mia 0.1451   repo 0.2631   repo/mia 1.814   (atteso ~1.814 se differisce solo per K_STD)

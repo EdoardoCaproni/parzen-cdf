@@ -125,6 +125,24 @@ Eseguite prima dei risultati: se una fallisce, il resto non vale nulla.
 
 ---
 
+### 3bis. Le misure trasferiscono al codice del repo?
+
+Lo studio usa un'implementazione NumPy indipendente. Verificato che coincida con quella del
+repo (`temp_analysis/parzen_equivalence.txt`):
+
+| confronto | esito |
+|---|---|
+| `parzen_cdf` e `parzen_pdf`, quattro valori di h | **bit-identiche** (scarto max 2.2e-16) |
+| LSCV, 5 semi | accordo entro **3–8 %** (griglie di candidati diverse per costruzione) |
+| Silverman | il repo differisce dalla nostra di **esattamente 1.814 = π/√3** |
+
+L'ultima riga è una conferma numerica del difetto di scala: `parzen.silverman_bandwidth`
+`[codice parzen.py:118-133]` **non è variance-matched** al kernel logistico, che è quello di
+default. Il repo ha `variance_matched_bandwidth` per questo, ma l'app espone anche
+`silverman` come strategia a sé `[codice server.py:109]`, e quella sovraliscia di 1.81×.
+
+---
+
 ## 4. Risultati (n = 500, 12 semi)
 
 Output integrale in `temp_analysis/bandwidth_n500.txt`.

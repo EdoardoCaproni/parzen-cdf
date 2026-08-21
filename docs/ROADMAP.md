@@ -134,4 +134,5 @@ script versionato.
 | esponente dello schedule | `temp_analysis/schedule_exponent.py` | `schedule_exponent.txt` |
 | qualità del campionamento | `temp_analysis/sampling_quality.py` | `sampling_quality.txt`, `sampling_seeds.txt` |
 | dominio e diagnostica truth-free | `temp_analysis/pipeline_evidence.py`, `grid_rule.py` | `pipeline_evidence.txt`, `grid_rule.txt` |
+| equivalenza Parzen replica/repo | — | `parzen_equivalence.txt` |
 | **verifica incrociata sul codice reale** | `temp_analysis/crosscheck_real_code.py` | `crosscheck_real_code.txt`, `clamp_on_violator.txt`, `seed_reproducibility.txt` |
