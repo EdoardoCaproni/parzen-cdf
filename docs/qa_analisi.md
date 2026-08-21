@@ -55,9 +55,15 @@ logit di uscita. Garantisce per costruzione, per ogni valore dei parametri: F �
 monotonia, F(−∞)=0 e F(+∞)=1 esatti, pdf ≥ 0 in forma chiusa, massa 1 — senza rettifica,
 senza griglia, senza clamp. Più standardizzazione interna dell'ingresso.
 
-**Esito misurato:** a parità di inizializzazione la proposta migliora l'ISE della densità in
-8 casi su 9 (fattori 1.2×–10.8×) e batte il maestro Parzen in 9 su 9. Capacità scelta a
-n=500: **J = 8**.
+**Esito misurato, dopo rivalidazione sullo stack vero (PyTorch):** la proposta resta la
+migliore fra le architetture su tutti e tre i casi provati, ma con margine **1.05×–1.9×** e
+non con gli ordini di grandezza suggeriti dalla prima replica NumPy; batte il maestro Parzen
+in **2 casi su 3**. Le garanzie strutturali (F(±∞) = 0/1 esatti, monotonia, massa 1) valgono
+**esattamente anche in float32**. Capacità scelta a n = 500: **J = 12** (rivista da J = 8).
+
+Due affermazioni della prima stesura sono state ritirate dalla rivalidazione: «gran parte del
+fallimento dell'architettura attuale è l'inizializzazione» (sullo stack vero non fallisce) e
+«batte il maestro 9 volte su 9». Dettaglio in `redesign_network.md` §4ter.
 
 **Stato:** analizzato e progettato, **non ancora implementato**.
 **Documento:** `docs/redesign_network.md` (con dimostrazioni T1–T6 ed esperimenti E1–E9).

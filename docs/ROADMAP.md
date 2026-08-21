@@ -72,8 +72,8 @@ Decisioni prese, con la prova che le sostiene. Non si riaprono senza una prova n
 | D-04 | **Multivariato fuori programma** | deciso con l'utente | fissata |
 | D-05 | **Finestra: LSCV**, integrata nello schedule h_n = h₁/√n | efficienza ISE 1.26 media / 1.59 peggiore contro 2.27 / 9.38 della regola 1.5σ̂, su 16 densità | `study_bandwidth.md` §4–5 |
 | D-06 | **Lo schedule h_n = h₁/√n si mantiene** nella forma richiesta dal docente | vincolo esplicito; LSCV fornisce ĥ₁ = h_LSCV·√n, che è una stima come lo era 1.5σ̂ | `study_bandwidth.md` §5 |
-| D-07 | **Architettura: mistura convessa di CDF logistiche** (DSF senza logit) | garantisce per costruzione dominio, monotonia, code, massa e pdf ≥ 0; ISE migliore in 8 casi su 9 | `redesign_network.md` §3, T2 |
-| D-08 | **J = 8 componenti** | calibrato a n = 500: J < 8 fallisce sulle multimodali, J > 8 sovradatta | `redesign_network.md` E8 |
+| D-07 | **Architettura: mistura convessa di CDF logistiche** (DSF senza logit) | garanzie strutturali esatte anche in float32; migliore fra le architetture su 3 casi su 3, ma con margine 1.05×–1.9× (non 10× come suggeriva la replica NumPy) | `redesign_network.md` §3, T2, §4ter |
+| D-08 | ~~J = 8~~ → **J = 12 componenti** | **rivista dopo la rivalidazione in PyTorch**: a J=8 il caso a 6 mode ha ISE doppia (0.00489 contro 0.00246); J=12 ha il miglior caso peggiore | `redesign_network.md` §4ter |
 | D-09 | **Standardizzazione interna dell'ingresso** | senza, la stima non è invariante: traslando di +1000 la rete collassa a KS 0.50 | `redesign_network.md` T6, E7 |
 | D-10 | **Niente rettifica, niente clamp** nel percorso principale | con D-07 non servono; il clamp rompe f = dF/dx | `redesign_network.md` T5, P4–P5 |
 | D-11 | **Niente penalità di monotonia** | con D-07 non ha oggetto; certifica solo i punti che guarda | `redesign_network.md` D9, E3 |
@@ -135,4 +135,5 @@ script versionato.
 | qualità del campionamento | `temp_analysis/sampling_quality.py` | `sampling_quality.txt`, `sampling_seeds.txt` |
 | dominio e diagnostica truth-free | `temp_analysis/pipeline_evidence.py`, `grid_rule.py` | `pipeline_evidence.txt`, `grid_rule.txt` |
 | equivalenza Parzen replica/repo | — | `parzen_equivalence.txt` |
+| rivalidazione della proposta su PyTorch | `temp_analysis/revalidate_torch.py`, `mixture_cdf_net.py` | `revalidate_torch.txt` |
 | **verifica incrociata sul codice reale** | `temp_analysis/crosscheck_real_code.py` | `crosscheck_real_code.txt`, `clamp_on_violator.txt`, `seed_reproducibility.txt` |

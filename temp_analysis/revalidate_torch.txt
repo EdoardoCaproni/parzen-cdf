@@ -1,0 +1,50 @@
+================================================================================================
+V0  AUTOTEST DEL PROTOTIPO: le garanzie di T2 valgono davvero in PyTorch?
+    F(-1e6) = 0.0   F(+1e6) = 1.0   (attesi 0 e 1 esatti)
+    monotona su 200.001 nodi: True   dislivello peggiore 0.00e+00
+    pdf sempre >= 0: True   pdf minima 0.00e+00
+    massa su [min-50, max+50]: 1.000000   (attesa 1)
+    pdf in forma chiusa vs differenza finita: scarto max 1.90e-04
+    non monotone su 500 perturbazioni casuali estreme: 0/500   (atteso 0)
+
+================================================================================================
+E4-reale  ACCURATEZZA sullo stack vero (n = 500, 5 semi, J/width = 8, Adam 6000 ep.)
+          confronto con la colonna corrispondente della replica NumPy
+
+   --- trimodale ---
+   stimatore           KS    ISE pdf |  KS NumPy  ISE NumPy
+   PW maestro      0.0352    0.00677
+   A_rect          0.0370    0.00337 |    0.0309    0.00316
+   Aq_rect         0.0350    0.00345 |    0.0318    0.00336
+   B_rect          0.0347    0.00352 |    0.0313    0.00368
+   C               0.0328    0.00322 |    0.0314    0.00339
+
+   --- 5 mode strette ---
+   stimatore           KS    ISE pdf |  KS NumPy  ISE NumPy
+   PW maestro      0.0376    0.00560
+   A_rect          0.0397    0.00803 |    0.1794    0.08391
+   Aq_rect         0.0427    0.01080 |    0.0342    0.00700
+   B_rect          0.1007    0.03798 |    0.1015    0.04084
+   C               0.0373    0.00475 |    0.0338    0.00473
+
+   --- 6 mode scale miste ---
+   stimatore           KS    ISE pdf |  KS NumPy  ISE NumPy
+   PW maestro      0.0385    0.00399
+   A_rect          0.0522    0.00845 |    0.0732    0.02088
+   Aq_rect         0.0473    0.00875 |    0.0431    0.00905
+   B_rect          0.0755    0.02840 |    0.0656    0.02502
+   C               0.0407    0.00451 |    0.0351    0.00241
+
+================================================================================================
+E8-reale  CAPACITA' di MixtureCDFNet (n = 500, 3 semi). Celle: KS / ISE pdf
+   caso                               J=4              J=6              J=8             J=12             J=16             J=24
+   trimodale               0.0310/0.00272   0.0306/0.00290   0.0307/0.00339   0.0327/0.00441   0.0326/0.00469   0.0330/0.00488  <- ISE min a J=4
+   5 mode strette          0.1056/0.05358   0.0332/0.00465   0.0326/0.00465   0.0333/0.00465   0.0340/0.00473   0.0339/0.00471  <- ISE min a J=12
+   6 mode scale miste      0.0775/0.03426   0.0594/0.01834   0.0377/0.00489   0.0347/0.00246   0.0341/0.00253   0.0339/0.00264  <- ISE min a J=12
+
+================================================================================================
+E9-reale  ETICHETTE: LOO di Parzen contro ECDF (n = 500, 3 semi, J = 8)
+   caso                            C su LOO(h)              C su ECDF   rapporto ISE
+   trimodale                  0.0307 / 0.00339       0.0311 / 0.00404          1.19x
+   5 mode strette             0.0326 / 0.00465       0.0345 / 0.00386          0.83x
+   6 mode scale miste         0.0377 / 0.00489       0.0336 / 0.00473          0.97x

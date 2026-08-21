@@ -419,6 +419,12 @@ Media su 3 semi, J = 8, ricetta PNN del repo (etichette LOO, h = 0.5 σ̂/√(n�
 | Bq_rect | 0.0430 / 0.00981 | 0.0369 / 0.00809 | 0.0245 / 0.00825 |
 | **C** | **0.0351 / 0.00241** | **0.0247 / 0.00158** | **0.0083 / 0.00054** |
 
+> **Attenzione: questa tabella e le letture che seguono sono misurate sulla replica NumPy e
+> sono state in parte SMENTITE dalla rivalidazione in PyTorch (§4ter).** In particolare il
+> punto 1 è ritirato, i fattori del punto 2 scendono a 1.05×–1.9×, e il punto 5 vale 2 volte
+> su 3 e non 9 su 9. La tabella resta come documentazione del percorso; i numeri da citare
+> sono quelli di §4ter.
+
 **Come vanno lette queste tabelle — onestamente.**
 
 1. **Gran parte del disastro di A non è l'architettura, è l'inizializzazione.** Sul caso a
@@ -524,8 +530,8 @@ soglia la curva è piatta, con un lieve peggioramento al crescere di J dovuto al
 sovradattamento del rumore delle etichette, **più marcato a n = 500 che a n = 1000**: sulla
 trimodale l'ISE passa da 0.00260 (J=4) a 0.00497 (J=24).
 
-**Scelta: J = 8.** Il numero di mode non è noto a priori, quindi non si può scendere sotto la
-soglia; e a n = 500 il costo di esagerare non è più trascurabile, quindi non conviene salire.
+**Scelta (superata da §4ter: sullo stack vero è J = 12).** Il numero di mode non è noto a
+priori, quindi non si può scendere sotto la soglia; e a n = 500 il costo di esagerare non è più trascurabile, quindi non conviene salire.
 J = 8 è il primo valore che soddisfa tutti e tre i casi ed è il minimo dell'ISE in due su tre.
 *(Questa raccomandazione corregge la precedente "J = 8–16", che era tarata su n = 1000: a
 n = 500 il ramo destro della curva è più ripido e J = 16 costa il 5–30 % di ISE in più.)*
@@ -636,6 +642,133 @@ del repo restano medie su inizializzazioni diverse — perché lo stato avanza a
 — ma le etichette «seme *k*» sono fittizie e nessun risultato è riproducibile. Va corretto
 insieme al resto (spostare la costruzione del modello dopo `set_seed`, o passare un
 `torch.Generator` esplicito).
+
+---
+
+## 4ter. Rivalidazione della proposta sullo stack vero
+
+La sezione 4bis ha ricontrollato le affermazioni sui **difetti del codice esistente**. Restava
+scoperta la parte più importante: le misure che sostengono la **proposta** (D-07 architettura,
+D-08 capacità, scelta delle etichette) erano state fatte sulla replica NumPy, cioè con il mio
+ottimizzatore e la mia inizializzazione. Qui vengono rifatte in PyTorch, con la libreria del
+repo per etichette e metriche.
+
+Prototipo: `temp_analysis/mixture_cdf_net.py`. Banco: `revalidate_torch.py` →
+`revalidate_torch.txt`. Il seme è fissato **prima** della costruzione di ogni modello, quindi
+a differenza del repo (difetto B8) il confronto è riproducibile.
+
+### V0 — Il prototipo rispetta i teoremi anche in float32
+
+| controllo | esito |
+|---|---|
+| F(−10⁶), F(+10⁶) | **0.0 e 1.0 esatti** |
+| monotonia su 200.001 nodi | vera, dislivello peggiore **0.00e+00** |
+| pdf ≥ 0 ovunque | vera |
+| massa su [min−50, max+50] | **1.000000** |
+| pdf in forma chiusa vs differenza finita | scarto 1.9e-04 (errore della differenza finita) |
+| non monotone su 500 perturbazioni casuali estreme | **0/500** |
+
+Da confrontare con `CDFNet(monotone=True)`, che in float32 mostra 1 caso su 1000 sotto la
+soglia `[V1]`. La forma a mistura è **più robusta numericamente**, perché è una combinazione
+convessa di funzioni individualmente crescenti.
+
+### E4-reale — Accuratezza (n = 500, 5 semi, J/width = 8)
+
+Celle: KS / ISE della pdf. A destra la colonna corrispondente della replica NumPy.
+
+| caso | stimatore | KS reale | ISE reale | KS NumPy | ISE NumPy |
+|---|---|---|---|---|---|
+| trimodale | PW maestro | 0.0352 | 0.00677 | — | — |
+| | A_rect | 0.0370 | 0.00337 | 0.0309 | 0.00316 |
+| | Aq_rect | 0.0350 | 0.00345 | 0.0318 | 0.00336 |
+| | B_rect | 0.0347 | 0.00352 | 0.0313 | 0.00368 |
+| | **C** | **0.0328** | **0.00322** | 0.0314 | 0.00339 |
+| 5 mode strette | PW maestro | 0.0376 | 0.00560 | — | — |
+| | A_rect | 0.0397 | 0.00803 | **0.1794** | **0.08391** |
+| | Aq_rect | 0.0427 | 0.01080 | 0.0342 | 0.00700 |
+| | B_rect | 0.1007 | 0.03798 | 0.1015 | 0.04084 |
+| | **C** | **0.0373** | **0.00475** | 0.0338 | 0.00473 |
+| 6 mode scale miste | PW maestro | 0.0385 | **0.00399** | — | — |
+| | A_rect | 0.0522 | 0.00845 | 0.0732 | 0.02088 |
+| | Aq_rect | 0.0473 | 0.00875 | 0.0431 | 0.00905 |
+| | B_rect | 0.0755 | 0.02840 | 0.0656 | 0.02502 |
+| | **C** | **0.0407** | 0.00451 | 0.0351 | 0.00241 |
+
+**Cosa regge e cosa no — quattro correzioni, tutte a nostro sfavore.**
+
+1. **D-07 regge: C resta il migliore fra le architetture**, su tutti e tre i casi e su entrambe
+   le metriche. La decisione non cambia.
+2. **Ma il margine si è ridotto molto.** Contro il miglior braccio del repo, sull'ISE: 1.05×
+   (trimodale, di fatto un pareggio), 1.69× (5 mode), 1.87× (6 mode). La replica NumPy
+   dichiarava fattori fino a **10.8×**. Quel numero non va usato.
+3. **La replica NumPy era ingiusta verso il repo.** Sul caso a 5 mode dava ad `A_rect` un KS di
+   0.1794; sullo stack vero è **0.0397**, cioè quattro volte e mezzo meglio. L'Adam di PyTorch
+   gestisce l'inizializzazione sfavorevole molto meglio del mio. **Va cancellata** la lettura
+   «gran parte del disastro di A è l'inizializzazione»: sullo stack vero non c'è nessun
+   disastro.
+4. **`Aq` non aiuta più.** L'inizializzazione sui quantili, che nella replica risolveva il
+   problema di A, sullo stack vero lo **peggiora** sui casi multimodali (0.0427 contro 0.0397;
+   0.01080 contro 0.00803). L'inizializzazione Xavier del repo va bene così.
+5. **C non batte più il maestro Parzen ovunque.** Sull'ISE: vince su trimodale (0.00322 contro
+   0.00677) e su 5 mode (0.00475 contro 0.00560), ma **perde** su 6 mode (0.00451 contro
+   0.00399). La replica dichiarava 9 vittorie su 9; il conteggio reale a n = 500 è **2 su 3**.
+
+### E8-reale — Capacità: **D-08 cambia, da J = 8 a J = 12**
+
+n = 500, 3 semi. Celle: KS / ISE.
+
+| caso | J=4 | J=6 | J=8 | **J=12** | J=16 | J=24 |
+|---|---|---|---|---|---|---|
+| trimodale | **0.0310/0.00272** | 0.0306/0.00290 | 0.0307/0.00339 | 0.0327/0.00441 | 0.0326/0.00469 | 0.0330/0.00488 |
+| 5 mode strette | 0.1056/0.05358 | 0.0332/0.00465 | 0.0326/0.00465 | **0.0333/0.00465** | 0.0340/0.00473 | 0.0339/0.00471 |
+| 6 mode scale miste | 0.0775/0.03426 | 0.0594/0.01834 | 0.0377/0.00489 | **0.0347/0.00246** | 0.0341/0.00253 | 0.0339/0.00264 |
+
+Il caso a 6 mode a scale miste è decisivo: passando da J = 8 a J = 12 l'ISE **dimezza**
+(0.00489 → 0.00246). Ragionando sul caso peggiore, che è il criterio giusto visto che la
+distribuzione bersaglio è ignota:
+
+| J | ISE peggiore fra i tre casi |
+|---|---|
+| 4 | 0.05358 (fallimento) |
+| 8 | 0.00489 |
+| **12** | **0.00465** |
+| 16 | 0.00473 |
+| 24 | 0.00488 |
+
+**D-08 rivista: J = 12.** L'asimmetria del rischio conferma la scelta: sbagliare per difetto è
+catastrofico (J = 4 sulle 5 mode: ISE 11× peggiore), sbagliare per eccesso costa pochissimo
+(J = 24 contro J = 12: +5 %).
+
+### E9-reale — Etichette: il vantaggio del maestro si assottiglia ancora
+
+n = 500, 3 semi, J = 8.
+
+| caso | C su etichette LOO(h) | C su ECDF | rapporto ISE |
+|---|---|---|---|
+| trimodale | 0.0307 / 0.00339 | 0.0311 / 0.00404 | 1.19× |
+| 5 mode strette | 0.0326 / 0.00465 | 0.0345 / **0.00386** | **0.83×** |
+| 6 mode scale miste | 0.0377 / 0.00489 | 0.0336 / **0.00473** | **0.97×** |
+
+Sullo stack vero **l'ECDF vince in 2 casi su 3**. Il maestro di Parzen conserva un vantaggio
+solo sulla trimodale. Questo **non tocca D-03** — il Parzen resta perché è parte
+dell'esercizio, non perché vinca un confronto — ma rafforza l'argomento di robustezza da
+mettere nel report: con un'architettura che è già una mistura di nuclei lisci, la
+regolarizzazione la fa la struttura, e la scelta della finestra smette di essere critica sul
+lato rete.
+
+### Bilancio della rivalidazione
+
+| affermazione | esito |
+|---|---|
+| D-07 architettura a mistura | **confermata**, margine ridotto da ~10× a ~1.9× |
+| garanzie strutturali (T2) in float32 | **confermate, esatte** |
+| D-08 J = 8 | **rivista: J = 12** |
+| «C batte il maestro 9/9» | **corretta: 2/3 a n = 500** |
+| «il disastro di A è l'inizializzazione» | **ritirata: sullo stack vero A non fallisce** |
+| E9 vantaggio del maestro | **ulteriormente ridotto: ECDF vince 2/3** |
+
+Due decisioni su quattro sono state modificate dal passaggio allo stack vero. È la ragione per
+cui questa rivalidazione andava fatta **prima** del refactor e non dopo.
 
 ---
 
@@ -788,7 +921,7 @@ class MixtureCDFNet(nn.Module):
     """F(x) = sum_j softmax(u)_j * sigmoid(a_j * z + b_j),  z = (x - mu) / sd,
     a_j = softplus(alpha_j).  CDF valida per ogni valore dei parametri (vedi T2)."""
 
-    def __init__(self, n_components: int = 8):    # J = 8, calibrato a n = 500 (E8)
+    def __init__(self, n_components: int = 12):   # J = 12, calibrato a n = 500 su PyTorch (§4ter)
         super().__init__()
         self.alpha = nn.Parameter(torch.zeros(n_components))
         self.b     = nn.Parameter(torch.zeros(n_components))
@@ -872,9 +1005,10 @@ una combinazione convessa di CDF è una CDF. Mai verificato numericamente; fuori
 
 Elenco esplicito, perché un documento che rivendica troppo è attaccabile quanto uno sbagliato.
 
-1. **Non affermiamo che la proposta batta il Parzen in generale.** Sul KS della CDF è
-   sostanzialmente alla pari con il maestro `[E4]`. Il vantaggio misurato è sull'ISE della
-   densità ed è concentrato sui bersagli multimodali; sulla trimodale a n=500 è un pareggio.
+1. **Non affermiamo che la proposta batta il Parzen in generale.** Sullo stack vero l'ISE è
+   migliore del maestro in 2 casi su 3 e **peggiore nel terzo** (6 mode: 0.00451 contro
+   0.00399) `[§4ter]`. Il vantaggio rispetto alle architetture del repo è reale ma modesto:
+   fattori 1.05×–1.9×, non gli ordini di grandezza suggeriti dalla replica NumPy.
 2. **Non affermiamo che i numeri del repo siano sbagliati.** Non abbiamo riprodotto la loro
    pipeline in PyTorch: A e B sono reimplementazioni fedeli della *funzione*, non
    dell'implementazione (Adam scritto da noi, inizializzazione con un altro RNG). I valori
