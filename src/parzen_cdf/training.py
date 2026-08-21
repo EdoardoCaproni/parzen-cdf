@@ -18,7 +18,7 @@ import numpy as np
 import torch
 
 from . import parzen
-from .models import CDFNet
+from .models import CDFNet, MixtureCDFNet
 
 
 @dataclass
@@ -170,4 +170,45 @@ def train_cdf(
         optimizer.step()
         history.append(loss.item())
 
+    return model, history
+
+
+def fit_mixture_cdf(x, y, *, n_components: int = 12, epochs: int = 6000,
+                    lr: float = 0.03, seed: int = 0) -> tuple[MixtureCDFNet, list[float]]:
+    """Costruisce e addestra una :class:`MixtureCDFNet` sulle coppie ``(x_i, y_i)``.
+
+    E' il percorso di addestramento del design nuovo (decisioni D-07..D-11). Rispetto a
+    :func:`train_cdf` mancano deliberatamente tre cose:
+
+    - **nessuna penalita' di monotonia** (D-11): non ha oggetto, la monotonia e' strutturale;
+    - **nessun clamp sulla densita'** (D-10): la pdf e' non negativa per costruzione;
+    - **nessuna rettifica a valle** (D-10): F e' gia' una CDF valida, e la massa e' 1 senza
+      bisogno di normalizzare su una griglia.
+
+    Il seme e' applicato **prima** della costruzione del modello: e' il punto in cui avviene
+    l'inizializzazione, e applicarlo dopo non avrebbe alcun effetto (difetto B8). In realta'
+    ``init_from_samples`` e' gia' deterministica dato ``x`` e non consuma numeri casuali, ma
+    il seeding esplicito rende l'intenzione evidente e protegge da modifiche future.
+
+    Parametri
+    ---------
+    x, y : campioni e relative etichette (CDF di Parzen ai punti campione, tipicamente LOO).
+    n_components : J, per default 12 (D-08 rivista, vedi docs/redesign_network.md 4ter).
+    """
+    import numpy as _np
+
+    set_seed(seed)
+    model = MixtureCDFNet(n_components)
+    model.init_from_samples(_np.asarray(x, dtype=float))
+    xt = torch.as_tensor(_np.asarray(x, dtype=float), dtype=torch.float32)
+    yt = torch.as_tensor(_np.asarray(y, dtype=float), dtype=torch.float32)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    mse = torch.nn.MSELoss()
+    history: list[float] = []
+    for _ in range(epochs):
+        optimizer.zero_grad()
+        loss = mse(model(xt), yt)
+        loss.backward()
+        optimizer.step()
+        history.append(loss.item())
     return model, history
