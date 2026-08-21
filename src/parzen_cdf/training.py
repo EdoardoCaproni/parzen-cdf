@@ -141,6 +141,11 @@ def train_cdf(
 
     When ``config.monotonicity_weight > 0`` a soft penalty on negative ``dF/dx`` is added, evaluated
     at ``penalty_points`` (defaults to uniform points over the input range).
+
+    NOTA sul seme: ``config.seed`` viene applicato qui, cioe' DOPO che il chiamante ha gia'
+    costruito ``model``. L'inizializzazione dei pesi avviene nel costruttore di ``CDFNet`` e
+    NON e' quindi controllata da questo seme. Chi vuole un run riproducibile deve chiamare
+    ``set_seed`` prima di costruire il modello (difetto B8).
     """
     set_seed(config.seed)
     if (config.monotonicity_weight > 0 or config.curvature_weight > 0) and penalty_points is None:

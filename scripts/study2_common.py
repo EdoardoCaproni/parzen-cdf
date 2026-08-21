@@ -112,9 +112,12 @@ def fit_cdf_net(samples: np.ndarray, targets: np.ndarray, width: int = 32,
     """Train the sigmoidal CDF regressor on (x_i, y_i) only (full batch, Adam)."""
     import torch
     from parzen_cdf.models import CDFNet
-    from parzen_cdf.training import TrainConfig, train_cdf
+    from parzen_cdf.training import TrainConfig, set_seed, train_cdf
 
     cfg = TrainConfig(epochs=epochs, lr=0.03, optimizer="adam", seed=seed)
+    # Il seme va fissato PRIMA di costruire il modello: l'inizializzazione avviene nel
+    # costruttore, e train_cdf richiama set_seed troppo tardi per influenzarla (difetto B8).
+    set_seed(seed)
     model = CDFNet(in_dim=1, hidden_sizes=(width,), activation="sigmoid")
     model, hist = train_cdf(model,
                             torch.as_tensor(samples, dtype=torch.float32),

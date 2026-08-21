@@ -20,7 +20,7 @@ import torch
 
 from parzen_cdf import data
 from parzen_cdf.models import CDFNet
-from parzen_cdf.training import TrainConfig, rectify_cdf, train_cdf
+from parzen_cdf.training import TrainConfig, rectify_cdf, set_seed, train_cdf
 from study2_common import (BUDGETS, grid_for, ise, ks, loo_cdf_targets, pnn_window, sigma_hat)
 
 MIX = data.asymmetric_trimodal()
@@ -36,6 +36,7 @@ REGIMES = ["raw", "rectified", "penalty λ=1", "penalty λ=10", "penalty λ=100"
 def fit(samples, targets, seed, mono_weight=0.0, monotone=False):
     cfg = TrainConfig(epochs=6000, lr=0.03, optimizer="adam", seed=seed,
                       monotonicity_weight=mono_weight)
+    set_seed(seed)          # prima della costruzione: l'init avviene nel costruttore (B8)
     model = CDFNet(in_dim=1, hidden_sizes=(WIDTH,), activation="sigmoid", monotone=monotone)
     model, _ = train_cdf(model,
                          torch.as_tensor(samples, dtype=torch.float32),
