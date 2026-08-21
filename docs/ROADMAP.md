@@ -43,6 +43,7 @@ Si applica solo dopo che F1 ha prodotto la motivazione scritta.
 | **B6** — ambiente `.venv/`, dipendenze, baseline dei test | **fatto: 55 test verdi** |
 | `MixtureCDFNet` + standardizzazione + pdf in forma chiusa (D-07…D-11) | prossimo |
 | `report_domain`, `run_from_samples`, diagnostica truth-free (D-12…D-15) | dopo |
+| **B8** — `seed` non controlla l'init: risultati non riproducibili | insieme a D-07 |
 | B2, B3, B4 — allineamento documenti e unificazione selettori | contestuale |
 
 **Baseline registrata:** prima esecuzione end-to-end del codice originale (trimodale,
@@ -105,9 +106,13 @@ Valgono per tutti i documenti prodotti.
 1. **Non fidarsi della documentazione esistente.** Fonti ammesse: il sorgente (con
    file:riga), una dimostrazione, una misura riproducibile, un riferimento verificato.
 2. **Ogni affermazione porta la sua marca** (`[codice]`, `[T#]`, `[E#]`, `[lett.]`).
-3. **Le previsioni smentite restano scritte**, con la smentita accanto. Sono già capitate tre
+3. **Le previsioni smentite restano scritte**, con la smentita accanto. È già capitato cinque
    volte (PAVA e i plateau, il controesempio sulla penalità, la sovrastima del vantaggio del
-   maestro a n=500) e ogni volta la conclusione corretta era più solida, non più debole.
+   maestro a n=500, «le violazioni non si presentano», «il clamp non si attiva mai») e ogni
+   volta la conclusione corretta era più solida, non più debole.
+7. **Ciò che è misurato su una replica va rimisurato sul codice vero** prima di entrare in un
+   documento definitivo. Due affermazioni su cinque non sono sopravvissute al passaggio
+   (§4bis di `redesign_network.md`).
 4. **I confronti vanno spogliati dei confondenti** prima di essere creduti (esempio:
    l'inizializzazione, che da sola spiegava metà del divario fra architetture).
 5. **Ogni documento ha una sezione "cosa NON afferma".**
@@ -129,3 +134,4 @@ script versionato.
 | esponente dello schedule | `temp_analysis/schedule_exponent.py` | `schedule_exponent.txt` |
 | qualità del campionamento | `temp_analysis/sampling_quality.py` | `sampling_quality.txt`, `sampling_seeds.txt` |
 | dominio e diagnostica truth-free | `temp_analysis/pipeline_evidence.py`, `grid_rule.py` | `pipeline_evidence.txt`, `grid_rule.txt` |
+| **verifica incrociata sul codice reale** | `temp_analysis/crosscheck_real_code.py` | `crosscheck_real_code.txt`, `clamp_on_violator.txt`, `seed_reproducibility.txt` |

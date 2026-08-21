@@ -393,6 +393,34 @@ Resta valido che tre test verificano proprietà che con D-07 cambieranno (monoto
 modalità `monotone`, `rectify_cdf`): la suite va comunque riscritta, vedi
 `redesign_network.md` §6.4. Ma ora esiste una **baseline verde** da cui partire.
 
+### B8 — Il parametro `seed` non controlla l'inizializzazione: i risultati non sono riproducibili `nuovo`
+
+In `fit_cdf_net` il modello è costruito **prima** che `train_cdf` chiami `set_seed`:
+
+```
+study2_common.py:113   model = CDFNet(...)          <- init dall'RNG globale
+training.py:145        set_seed(config.seed)        <- troppo tardi
+```
+
+L'addestramento è full-batch e deterministico, quindi il riseeding successivo non cambia
+nulla: **l'intero risultato dipende dallo stato globale dell'RNG di PyTorch al momento della
+chiamata**, non dal seme passato. Verificato (`temp_analysis/seed_reproducibility.txt`):
+
+| prova | esito |
+|---|---|
+| semi **diversi** (0, 1, 2), stesso stato globale | risultati **identici** (F(0) = 0.496384 in tutti e tre) |
+| **stesso** seme (0), stato globale diverso | risultati **diversi** (0.496177, 0.496521, 0.500892) |
+| stesso seme, stesso stato globale | identici, come deve essere |
+
+**Perché è grave:** ogni «media su 5 semi» della fase B in `docs/study2.md` e in
+`report/report2.tex` non è riproducibile, e le etichette dei semi sono fittizie. Le medie
+restano medie su inizializzazioni diverse — lo stato globale avanza a ogni iterazione del
+ciclo — quindi non sono prive di senso, ma nessun numero pubblicato può essere riottenuto.
+È anche il motivo per cui la nostra verifica V4 non riproduceva sé stessa fra esecuzioni.
+
+**Correzione:** costruire il modello dopo `set_seed`, oppure passare un `torch.Generator`
+esplicito all'inizializzazione. Da fare insieme al refactor della rete (D-07).
+
 ### B7 — Materiale superato ancora nel repo `nuovo`
 
 `old/` contiene **31 file** (notebook, script, risultati e un report della prima passata);

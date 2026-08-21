@@ -1,0 +1,10 @@
+ricerca di un'inizializzazione che violi la monotonia (lo stato RNG globale la governa):
+   trovate 3 inizializzazioni con violazioni su 11 provate
+
+ stato   viol %   dF/dx<0       int f   int clamp(f)   massa inventata  KS grezzo  KS rettif.
+     2    5.05%       103    0.994370       0.994443         +7.28e-05     0.0255      0.0267
+     8    1.30%        32    0.992194       0.992199         +4.71e-06     0.0279      0.0310
+    10    6.15%       132    0.991931       0.992034         +1.03e-04     0.0254      0.0289
+
+int f = F(fine)-F(inizio) se e solo se il clamp non altera nulla.
+'massa inventata' > 0 dimostra che pdf e CDF consegnate smettono di essere coerenti.

@@ -1,0 +1,13 @@
+============================================================================================
+A  L'UNICO CASO NON MONOTONO CON monotone=True: violazione vera o rumore float32?
+   Il teorema dice 0 in aritmetica esatta. torch usa float32 di default.
+   casi sotto soglia -1e-9: 1/1000, dislivello peggiore: -1.490e-08
+   eps di float32 attorno a 0.5: 5.960e-08
+   -> il dislivello e' RUMORE float32
+
+============================================================================================
+B  IL CLAMP SU UNA RETE CHE VIOLA DAVVERO (semi con violazioni note da V4)
+    seme   viol %       int f   int clamp(f)   massa inventata  massa dopo rettifica
+       0    0.00%    0.989408       0.989408         +0.00e+00              1.000000
+       3    0.00%    0.981777       0.981777         +0.00e+00              1.000000
+       2    0.00%    0.994229       0.994229         +0.00e+00              1.000000

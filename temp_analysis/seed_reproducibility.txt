@@ -1,0 +1,13 @@
+stesso seed=0, ma stato globale dell'RNG di torch diverso prima della chiamata:
+   torch.manual_seed(11) poi fit_cdf_net(seed=0) -> F(0)=0.496177  viol=0.00%
+   torch.manual_seed(22) poi fit_cdf_net(seed=0) -> F(0)=0.496521  viol=0.00%
+   torch.manual_seed(33) poi fit_cdf_net(seed=0) -> F(0)=0.500892  viol=0.00%
+
+stesso seed=0 e STESSO stato globale prima della chiamata:
+   torch.manual_seed(99) poi fit_cdf_net(seed=0) -> F(0)=0.496384  viol=0.00%
+   torch.manual_seed(99) poi fit_cdf_net(seed=0) -> F(0)=0.496384  viol=0.00%
+
+seed DIVERSI ma stesso stato globale:
+   torch.manual_seed(99) poi fit_cdf_net(seed=0) -> F(0)=0.496384  viol=0.00%
+   torch.manual_seed(99) poi fit_cdf_net(seed=1) -> F(0)=0.496384  viol=0.00%
+   torch.manual_seed(99) poi fit_cdf_net(seed=2) -> F(0)=0.496384  viol=0.00%

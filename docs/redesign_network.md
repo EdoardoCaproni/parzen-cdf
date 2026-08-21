@@ -157,7 +157,12 @@ i tratti negativi di f aggiunge area: ∫clamp(f,0) = ∫f + ∫max(0,−f) ≥ 
 uguaglianza solo se f ≥ 0 quasi ovunque `[T5]`. Le due uscite consegnate (CDF e pdf)
 smettono di essere l'una la primitiva dell'altra.
 
-**Onestà:** nelle nostre esecuzioni il clamp non si è mai attivato, perché le reti sono
+**Aggiornamento dopo la verifica sul codice reale (§4bis).** In prima stesura, sulla base
+delle repliche NumPy, questo era classificato come *rischio latente mai osservato*. **È stato
+osservato:** con il codice del repo e un'inizializzazione che produce violazioni (3 casi su 11
+provati) il clamp si attiva su 32–132 nodi e gonfia la massa di +4.7e-06 … +1.03e-04 `[V6]`.
+
+Testo originale, conservato: nelle nostre esecuzioni NumPy il clamp non si è mai attivato, perché le reti sono
 uscite già monotone `[E5]`; su una curva non monotona costruita apposta l'errore appare
 (0.99259 → 0.99339) `[E5]`. È quindi un **rischio latente**, non un errore osservato. Il
 punto resta: una garanzia deve essere strutturale, non condizionata al fatto che il difetto
@@ -195,6 +200,12 @@ sigmoidali, che è troppo liscia. Il controesempio dimostra il **buco logico** (
 non è un vincolo), non un fallimento osservato. Il difetto pratico è un altro: essendo un
 metodo di penalizzazione, non dà garanzie e introduce un compromesso su λ, che nella
 tabella dello studio stesso costa 2–3× di ISE a λ=100 `[codice docs/study2.md:138-145]`.
+
+**Aggiornamento dopo §4bis.** Avevamo aggiunto che «nelle nostre esecuzioni le reti sono uscite
+monotone, quindi non abbiamo prova che la penalità serva». **Era un artefatto della replica
+NumPy.** Con il codice del repo le violazioni compaiono in circa un quarto delle
+inizializzazioni, fino al 6.15 % dei nodi `[V4]` `[V6]`. Questo **rafforza** P1: il problema
+esiste, e la risposta giusta è una garanzia strutturale, non una penalità che lo insegue.
 
 ### D10 — Nessuna standardizzazione dell'ingresso: la stima non è invariante `[T6]` `[E7]`
 
@@ -322,6 +333,12 @@ l'effetto dell'architettura da quello dell'inizializzazione), **C** = proposta,
 | B (repo, pesi softplus) | 0 / 1000 |
 | C (proposta) | 0 / 1000 |
 
+**Caveat di precisione, emerso sul codice reale `[V1]`.** I teoremi T1/T2 valgono in aritmetica
+esatta; PyTorch lavora in float32. Ripetendo la prova con `CDFNet(monotone=True)` si osserva
+1 caso su 1000 con un dislivello di −1.5e-08, contro un ULP di float32 attorno a 0.5 pari a
+6.0e-08: il dislivello è **più piccolo di un ULP**, quindi è rumore di rappresentazione e non
+una violazione del teorema. Nei test la soglia va posta a ~1e-6, non a 1e-9.
+
 ### E2 — Le code
 
 Trimodale, n = 1000, seme 0; valore di F a mediana ± 50 σ̂ dopo il training:
@@ -350,10 +367,14 @@ Avvallamento gaussiano di ampiezza 0.02 centrato esattamente fra due punti:
 
 **Onestà.** Un avvallamento così stretto non è producibile da una rete a 8 unità sigmoidali,
 che è troppo liscia: il controesempio dimostra il buco logico (la penalità non è un vincolo),
-non un fallimento osservato. Nelle nostre esecuzioni tutte le reti sono uscite monotone senza
-penalità `[E5]`, quindi non abbiamo alcuna prova che la penalità serva; il difetto pratico è
-che introduce un iperparametro λ che, per ammissione della tabella dello studio, a λ=100
-costa 2–3× di ISE `[codice docs/study2.md:138-145]`.
+non un fallimento osservato.
+
+**Correzione dopo §4bis.** Qui avevamo scritto che «nelle nostre esecuzioni tutte le reti sono
+uscite monotone, quindi non abbiamo prova che la penalità serva». Vero sulla replica NumPy,
+**falso sul codice reale**: con la ricetta del repo le violazioni compaiono in circa un quarto
+delle inizializzazioni, fino al 6.15 % dei nodi `[V4]`. Il problema è reale; resta che la
+penalità è il rimedio sbagliato, perché non è un vincolo e introduce un λ che a 100 costa
+2–3× di ISE `[codice docs/study2.md:138-145]`.
 
 ### E4 — Accuratezza
 
@@ -436,8 +457,8 @@ Trimodale, n = 1000, seme 0, sul dominio di valutazione:
 | Bq | 0.988486 | 0.988486 | 0.988486 |
 | **C** | **0.999927** | **0.999927** | **0.999927** |
 
-**Il clamp non si è mai attivato**, perché tutte le reti sono uscite monotone: è un rischio
-latente, non un errore osservato. Su una curva costruita non monotona il difetto si
+**Sulla replica NumPy il clamp non si è mai attivato**, perché tutte le reti sono uscite
+monotone. **Sul codice reale si attiva**: vedi §4bis `[V6]`. Su una curva costruita non monotona il difetto si
 manifesta: ∫f = 0.992595 = F(fine) − F(inizio), mentre ∫clamp(f,0) = 0.993393, cioè
 **+7.98e-04 di massa inventata** `[T5]`.
 
@@ -552,6 +573,69 @@ report, non un invito a togliere il Parzen.
 Nota di lettura per il resto della sezione: C addestrata sulle etichette LOO batte il PW
 maestro sull'ISE in tutti e tre i casi anche a questo budget (0.00344 contro 0.00677;
 0.00482 contro 0.00560; 0.00285 contro 0.00399).
+
+---
+
+## 4bis. Verifica incrociata sul codice reale
+
+Tutta la sezione 4 è stata misurata su **repliche indipendenti in NumPy**, scelta deliberata:
+un errore del repo non doveva poter contaminare le misure che lo giudicano. Dopo la
+correzione di B1 e la creazione dell'ambiente (B6) il repo gira, quindi ogni affermazione che
+riguarda il **comportamento del codice** è stata rimisurata con la libreria del repo.
+
+Banco: `temp_analysis/crosscheck_real_code.py` → `crosscheck_real_code.txt`, più
+`clamp_on_violator.txt` e `seed_reproducibility.txt`.
+
+| # | affermazione | replica NumPy | codice reale | esito |
+|---|---|---|---|---|
+| V1 | monotonia strutturale, 1000 parametrizzazioni casuali | A: 955/1000 non monotone; B: 0/1000 | A: **956/1000**; B: **1/1000** | **confermata** (l'1 è rumore float32, vedi sotto) |
+| V2 | saturazione delle code dopo il training | massa fra asintoti 0.9921 / 0.9898 | **0.9955 / 0.9903** | **confermata** |
+| V3 | invarianza per traslazione | KS 0.028 → 0.50 a +1000 | KS 0.031 → **0.50 già a +100**, fino a **0.70** | **confermata e peggiore** |
+| V4 | violazioni di monotonia nella ricetta del repo | 0 % (mai osservate) | **fino al 6.15 %**, in circa 1 inizializzazione su 4 | **SMENTITA** |
+| V6 | il clamp si attiva? | mai | **sì**: 32–132 nodi, massa gonfiata di +4.7e-06 … +1.03e-04 | **SMENTITA** |
+
+### Cosa è cambiato, in concreto
+
+**1. Le violazioni di monotonia esistono davvero.** Era l'affermazione più fragile della
+sezione 4, e va nella direzione che rafforza la proposta: il difetto che la rettifica e la
+penalità cercano di rimediare **si presenta**, in circa un quarto delle inizializzazioni e
+fino al 6.15 % dei nodi della griglia. La replica NumPy non lo mostrava perché il mio
+ottimizzatore e la mia inizializzazione differiscono da quelli di PyTorch. Conclusione
+invariata, argomento più forte: serve una garanzia strutturale (P1), non un rimedio a valle.
+
+**2. Il clamp è un difetto osservato, non latente.** Su una rete che viola davvero, `clamp_min(0)`
+si attiva e rompe l'identità ∫f = F(b) − F(a) di +4.7e-06 … +1.03e-04 `[T5]`. Nella stessa
+misura si vede anche che **la rettifica peggiora il KS** in tutti e tre i casi provati
+(0.0255→0.0267, 0.0279→0.0310, 0.0254→0.0289): non è la correzione gratuita che il repo
+descrive.
+
+**3. La fragilità alla traslazione è peggiore del previsto.** La replica NumPy collassava a
++1000; il codice reale collassa **già a +100**, con KS 0.50 su due semi su tre e 0.70 sul
+terzo — cioè peggio della costante 0.5. La decisione D-09 (standardizzazione interna) ne esce
+rafforzata.
+
+**4. Il teorema regge, ma in float32 va misurato con la tolleranza giusta.** L'unico caso
+non monotono su 1000 con `monotone=True` ha un dislivello di −1.5e-08 contro un ULP di float32
+attorno a 0.5 pari a 6.0e-08: è **più piccolo di un ULP**, quindi rumore di rappresentazione.
+Nei test la soglia va posta a ~1e-6.
+
+### Il difetto che ha reso la verifica difficile
+
+Durante V4 le violazioni non si riproducevano fra un'esecuzione e l'altra sugli stessi semi.
+La causa è un difetto del repo, ora accertato (**B8** in `qa_analisi.md`):
+
+> In `fit_cdf_net` `[codice study2_common.py:113]` il modello è costruito **prima** che
+> `train_cdf` chiami `set_seed(config.seed)` `[codice training.py:145]`. L'inizializzazione
+> dipende quindi dallo stato globale dell'RNG di PyTorch al momento della chiamata, non dal
+> seme. Verificato: semi **diversi** con lo stesso stato globale danno risultati **identici**;
+> lo **stesso** seme con stato globale diverso dà risultati **diversi**.
+
+Conseguenza per la sezione 4: i valori assoluti misurati sul codice reale non sono
+riproducibili fra esecuzioni, né i nostri né quelli di `docs/study2.md`. Le medie su più semi
+del repo restano medie su inizializzazioni diverse — perché lo stato avanza a ogni iterazione
+— ma le etichette «seme *k*» sono fittizie e nessun risultato è riproducibile. Va corretto
+insieme al resto (spostare la costruzione del modello dopo `set_seed`, o passare un
+`torch.Generator` esplicito).
 
 ---
 
