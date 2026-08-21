@@ -1,0 +1,42 @@
+============================================================================================
+T1/T2  ADERENZA ALLA DISTRIBUZIONE VERA
+   Un generatore corretto non deve solo 'passare' il test KS: i suoi p-value devono
+   essere UNIFORMI in [0,1]. Un generatore troppo 'bravo' (p-value tutti alti) sarebbe
+   sospetto quanto uno che rifiuta troppo.
+   n=  500: rifiuti al 5% = 0.050 (atteso 0.050) | p-value mediano = 0.553 (atteso 0.500) | uniformita' dei p-value: p = 0.049
+   n= 2000: rifiuti al 5% = 0.047 (atteso 0.050) | p-value mediano = 0.511 (atteso 0.500) | uniformita' dei p-value: p = 0.258
+
+============================================================================================
+T3  FREQUENZE DELLE COMPONENTI contro i pesi (chi-quadro)
+   osservate [30028 50112 19860]  attese [30000 50000 20000]  ->  chi2 p = 0.533
+   frequenze relative [0.3003 0.5011 0.1986]  contro pesi [0.3 0.5 0.2]
+
+============================================================================================
+T4  INDIPENDENZA SERIALE
+   Se ci fosse struttura nello stream, i campioni non sarebbero i.i.d. e ogni misura
+   di errore basata su repliche indipendenti sarebbe falsata.
+   autocorrelazione lag   1: +0.00077   banda 95% +-0.00438   ok
+   autocorrelazione lag   2: +0.00234   banda 95% +-0.00438   ok
+   autocorrelazione lag   5: +0.00304   banda 95% +-0.00438   ok
+   autocorrelazione lag  10: +0.00268   banda 95% +-0.00438   ok
+   autocorrelazione lag 100: +0.00140   banda 95% +-0.00438   ok
+   test dei run: osservati 99792, attesi 100001, z = -0.93   (|z| < 1.96 = ok)
+
+============================================================================================
+T5  I SEMI PICCOLI E CONSECUTIVI (0,1,2,...) INTRODUCONO STRUTTURA?
+   Tutti i nostri esperimenti usano default_rng(0..k). Se semi vicini producessero
+   stream correlati, le 'repliche indipendenti' non lo sarebbero.
+   semi 0..299   : rifiuti 0.050  mediana 0.553
+   semi a 64 bit : rifiuti 0.063  mediana 0.489
+   le due distribuzioni di p-value sono distinguibili?  KS a due campioni: p = 0.066  (alto = indistinguibili = ok)
+   correlazione fra media campionaria e indice del seme: +0.0917  (atteso ~0)
+
+============================================================================================
+T6  ANCESTRALE vs INVERSIONE NUMERICA DELLA CDF
+   L'ancestrale e' ESATTO: sceglie la componente e campiona da una normale esatta.
+   L'inversione richiede una radice numerica, quindi e' esatta solo entro tolleranza.
+   KS ancestrale vs CDF vera : 0.00424 (p = 0.328)
+   KS inversione  vs CDF vera : 0.00406 (p = 0.380)
+   i due campioni sono distinguibili fra loro? KS a due campioni: p = 0.696
+   -> entrambi corretti; l'ancestrale e' preferibile perche' esatto per costruzione
+      e O(n) invece che O(n * iterazioni di bisezione).

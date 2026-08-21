@@ -1,0 +1,29 @@
+densita                         A min/max          B  +3h         B  +10h      C  +1sigma      C  +3sigma    D  +3robustaE quantili F_hat (eps=0.0001)
+MW01 gaussian                    4.60e-03        9.11e-04        2.26e-05        1.70e-04        2.02e-08        2.65e-08        3.48e-04
+MW02 skewed unimodal             3.38e-03        6.16e-04        1.76e-05        9.99e-05        7.15e-08        2.99e-07        2.48e-04
+MW03 strongly skewed             2.71e-03        1.69e-03        8.95e-04        1.14e-04        4.78e-08        2.56e-07        1.53e-03
+MW04 kurtotic unimodal           3.85e-03        3.02e-03        1.70e-03        2.96e-04        3.99e-07        7.77e-05        2.84e-03
+MW05 outlier                     1.93e-03        1.69e-03        1.22e-03        8.06e-04        1.12e-04        7.85e-04        1.63e-03
+MW06 bimodal                     3.28e-03        4.11e-04        1.15e-06        3.89e-06        6.66e-16        0.00e+00        1.19e-04
+MW07 separated bimodal           3.28e-03        4.37e-04        1.32e-06        3.22e-09        0.00e+00        0.00e+00        1.35e-04
+MW08 skewed bimodal              4.49e-03        1.51e-03        1.10e-04        1.04e-04        2.41e-09        7.69e-11        8.83e-04
+MW09 trimodal                    3.22e-03        4.81e-04        1.89e-06        9.55e-07        0.00e+00        0.00e+00        1.66e-04
+MW10 claw                        3.47e-03        2.60e-03        1.29e-03        2.14e-04        1.19e-07        5.94e-08        2.41e-03
+MW11 double claw                 3.21e-03        4.81e-04        2.74e-06        3.94e-06        6.38e-16       -2.22e-16        1.70e-04
+MW12 asymmetric claw             3.67e-03        1.86e-03        5.00e-04        7.16e-05        1.43e-09        1.45e-10        1.37e-03
+MW13 asym double claw            3.04e-03        1.01e-03        1.69e-04        4.00e-06        1.26e-15        1.11e-16        6.86e-04
+REPO trimodale                   2.45e-03        2.13e-04        1.13e-06        6.46e-10        0.00e+00        0.00e+00        5.83e-05
+REPO 5 mode strette              2.23e-03        3.88e-04        7.27e-06        0.00e+00        0.00e+00        0.00e+00        1.93e-04
+REPO 6 mode scale miste          2.00e-03        1.19e-03        3.31e-04        3.38e-08        0.00e+00        0.00e+00        1.03e-03
+
+regola                                  media    CASO PEGGIORE
+A min/max                            3.18e-03         4.60e-03
+B  +3h                               1.16e-03         3.02e-03
+B  +10h                              3.92e-04         1.70e-03
+C  +1sigma                           1.18e-04         8.06e-04
+C  +3sigma                           7.04e-06         1.12e-04
+D  +3robusta                         5.40e-05         7.85e-04
+E quantili F_hat (eps=0.0001)        8.63e-04         2.84e-03
+
+Nota: a k=0 la massa fuori vale ~2/(n+1) = 4.0e-03 per pure statistiche d'ordine,
+indipendentemente dalla densita'. E' il pavimento contro cui misurare i padding.

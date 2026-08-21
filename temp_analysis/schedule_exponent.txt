@@ -1,0 +1,44 @@
+================================================================================================
+A  ESPONENTE EMPIRICO: h* ~ n^(-p).  Lo schedule del corso impone p = 0.5;
+   la teoria MISE per la pdf dice p = 0.2.  Regressione di log h* su log n.
+   densita                       n=100     n=250     n=500    n=1000    n=2000   p stimato
+   MW01 gaussian                0.2428    0.2116    0.1652    0.1582    0.1188       0.232
+   MW06 bimodal                 0.2264    0.1703    0.1391    0.1245    0.0935       0.283
+   MW09 trimodal                0.1998    0.1671    0.1342    0.1059    0.0762       0.320
+   MW10 claw                    0.0753    0.0457    0.0357    0.0285    0.0244       0.373
+   MW12 asymmetric claw         0.0985    0.0746    0.0594    0.0419    0.0311       0.388
+   REPO trimodale               0.1554    0.1380    0.1079    0.0910    0.0736       0.257
+   REPO 5 mode strette          0.1316    0.1095    0.0909    0.0736    0.0621       0.257
+   REPO 6 mode scale miste      0.1741    0.1256    0.1111    0.0895    0.0740       0.279
+   -> p medio = 0.299  (intervallo 0.232 - 0.388);  teoria pdf = 0.200,  schedule del corso = 0.500
+
+================================================================================================
+B  COSTO DI IMPORRE p = 1/2.  h1 viene calibrato all'ORACOLO su n_cal e poi usato
+   su n_uso tramite h = h1/sqrt(n_uso).  Efficienza ISE rispetto all'oracolo di n_uso.
+   La diagonale (n_cal = n_uso) vale 1.00 per costruzione: a budget FISSO lo schedule
+   non costa nulla. Il costo appare solo spostandosi di budget.
+   densita                   n_cal    uso 100   uso 250   uso 500  uso 1000  uso 2000
+   MW01 gaussian               100       1.04      3.18      1.62      2.18      2.03
+                               500       1.96      1.26      1.11      1.34      1.32
+                              2000       5.39      2.59      1.70      1.10      1.04
+   MW06 bimodal                100       1.07      1.20      1.20      1.67      1.70
+                               500       1.55      1.08      1.03      1.22      1.21
+                              2000       2.50      1.51      1.20      1.06      1.02
+   MW09 trimodal               100       1.01      1.16      1.23      1.51      1.43
+                               500       1.33      1.08      1.01      1.05      1.05
+                              2000       1.56      1.17      1.03      1.02      1.02
+   MW10 claw                   100       1.08      1.01      1.01      1.07      1.22
+                               500       1.11      1.03      1.01      1.04      1.16
+                              2000       1.37      1.27      1.17      1.06      1.00
+   MW12 asymmetric claw        100       1.01      1.06      1.12      1.05      1.10
+                               500       1.06      1.02      1.02      1.00      1.00
+                              2000       1.08      1.03      1.02      1.01      1.00
+   REPO trimodale              100       1.00      1.26      1.30      1.58      1.71
+                               500       1.39      1.03      1.01      1.07      1.16
+                              2000       2.17      1.37      1.21      1.04      1.02
+   REPO 5 mode strette         100       1.00      1.18      1.30      1.48      1.81
+                               500       1.38      1.05      1.01      1.07      1.20
+                              2000       2.22      1.55      1.21      1.07      1.01
+   REPO 6 mode scale miste     100       1.01      1.05      1.16      1.42      1.55
+                               500       1.17      1.09      1.00      1.06      1.12
+                              2000       1.52      1.48      1.18      1.04      1.00

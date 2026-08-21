@@ -1,0 +1,90 @@
+====================================================================================================
+V  VALIDAZIONI (se una fallisce, tutto il resto e' da buttare)
+  V1  ogni densita' integra a 1 e la CDF va da ~0 a ~1 sulla griglia usata
+      scarto massimo sulla massa: 1.97e-09   sugli estremi della CDF: 9.87e-10
+  V2  il plug-in a due stadi su dati gaussiani deve dare ~1.06*s*n^(-1/5)
+      n=  200: costante implicita = 1.0428 +- 0.0419   (atteso ~1.06)
+      n=  500: costante implicita = 1.0427 +- 0.0528   (atteso ~1.06)
+      n= 2000: costante implicita = 1.0511 +- 0.0245   (atteso ~1.06)
+  V3  l'interpolazione della curva ISE(h) non introduce errore apprezzabile
+      errore relativo massimo dell'interpolazione: 0.40% (su MW10 claw)
+  V4  l'ottimo dell'oracolo non tocca i bordi della griglia di h (altrimenti e' troncato)
+      densita' con ottimo sul bordo: 0/16
+
+====================================================================================================
+R  RISULTATI  (n = 1000, 12 semi, kernel logistico)
+   efficienza = errore(selettore) / errore(oracolo);  1.00 = ottimo, piu' alto = peggio
+
+   costante ottima per densita', famiglia 'c*sigma/sqrt(n)  [forma repo]':
+      MW01=5.31  MW02=4.69  MW03=0.74  MW04=0.95  MW05=1.55  MW06=3.25  MW07=1.76  MW08=2.87  MW09=2.54  MW10=1.08  MW11=3.25  MW12=1.08  MW13=1.55  REPO=1.22  REPO=0.40  REPO=0.66
+      -> min 0.40  max 5.31  rapporto max/min = 13.2x   (se fosse una legge, sarebbero tutte uguali)
+
+   costante ottima per densita', famiglia 'c*scala*n^(-1/5) [esponente corretto]':
+      MW01=1.16  MW02=1.16  MW03=0.19  MW04=0.38  MW05=1.04  MW06=0.74  MW07=0.42  MW08=0.66  MW09=0.59  MW10=0.24  MW11=0.74  MW12=0.27  MW13=0.38  REPO=0.30  REPO=0.10  REPO=0.15
+      -> min 0.10  max 1.16  rapporto max/min = 11.8x   (se fosse una legge, sarebbero tutte uguali)
+
+   costante ottima per densita', famiglia 'c*dist k-esimo vicino':
+      MW01=3.25  MW02=2.87  MW03=0.66  MW04=0.46  MW05=2.87  MW06=1.99  MW07=1.76  MW08=1.76  MW09=1.55  MW10=0.74  MW11=1.99  MW12=0.74  MW13=0.95  REPO=0.95  REPO=0.84  REPO=0.46
+      -> min 0.46  max 3.25  rapporto max/min = 7.1x   (se fosse una legge, sarebbero tutte uguali)
+
+   EFFICIENZA ISE DELLA pdf, per densita' (media sui semi)
+   densita                    repo h1=1.0 repo 1.5*sigm Silverman rob         Scott plug-in 2 sta          LSCV     MLCV (KL) c*sigma/sqrt( c*scala*n^(-1 c*dist k-esim
+   MW01 gaussian                     5.61          3.72          1.35          1.17          1.22          1.39          1.28          4.62          4.32          3.55
+   MW02 skewed unimodal              4.44          3.54          1.29          1.12          1.22          1.62          1.27          5.21          5.34          3.74
+   MW03 strongly skewed              1.17          2.17          8.16         11.51          4.12          1.17          1.40          1.56          1.49          1.49
+   MW04 kurtotic unimodal            1.14          1.56          3.75         14.10          1.76          1.08          2.37          1.15          1.21          5.05
+   MW05 outlier                      3.50          1.11          1.19         10.01          1.13          1.44          2.94          1.29          3.94          3.10
+   MW06 bimodal                      4.07          2.14          1.16          1.42          1.14          1.29          1.29          2.70          2.46          1.98
+   MW07 separated bimodal            2.67          1.14          4.24          6.63          1.28          1.19          1.20          1.36          1.26          1.68
+   MW08 skewed bimodal               2.99          1.75          1.25          1.60          1.14          1.18          1.14          2.20          2.01          1.62
+   MW09 trimodal                     3.19          1.57          1.37          1.78          1.20          1.15          1.15          1.98          1.81          1.45
+   MW10 claw                         1.03          1.28          5.32          6.06          5.42          1.10          1.59          1.06          1.12          1.42
+   MW11 double claw                  2.09          1.39          1.08          1.19          1.07          1.12          1.13          1.59          1.51          1.34
+   MW12 asymmetric claw              1.05          1.07          2.21          2.54          2.15          1.07          1.09          1.02          1.03          1.15
+   MW13 asym double claw             1.34          1.03          1.36          1.50          1.31          1.11          1.14          1.09          1.06          1.04
+   REPO trimodale                    2.52          1.07          5.91          7.93          2.63          1.08          1.09          1.02          1.02          1.06
+   REPO 5 mode strette               1.99          9.45         34.99         39.23         26.33          1.10          1.04         10.11         13.83          1.21
+   REPO 6 mode scale miste           2.49          2.91         12.11         13.97          9.93          1.18          1.13          1.96          2.83          2.92
+
+   SINTESI (su tutte le densita')
+   selettore                                 ISE media   ISE p90  ISE peggiore  KS media  KS peggiore    >2x
+   repo h1=1.0                                    2.58      4.68          5.61      1.24         2.39   55%
+   repo 1.5*sigma                                 2.31      4.37          9.45      1.24         1.90   32%
+   Silverman robusto                              5.42     11.29         34.99      1.71         3.98   49%
+   Scott                                          7.61     16.13         39.23      2.17         5.14   58%
+   plug-in 2 stadi                                3.94      8.64         26.33      1.47         2.91   38%
+   LSCV                                           1.20      1.45          1.62      1.10         1.23    3%
+   MLCV (KL)                                      1.39      2.21          2.94      1.20         2.20   11%
+   c*sigma/sqrt(n)  [forma repo] [LODO]           2.49      5.52         10.11      1.22         1.95   34%
+   c*scala*n^(-1/5) [esponente corretto] [LODO]       2.89      6.83         13.83      1.25         2.20   39%
+   c*dist k-esimo vicino [LODO]                   2.11      4.11          5.05      1.23         2.08   34%
+
+   VARIABILITA' DI h FRA CAMPIONI (coefficiente di variazione di h sui semi).
+   La critica classica alla CV e' proprio l'instabilita': va misurata, non assunta.
+   selettore                  MW01    MW02    MW03    MW04    MW05    MW06    MW07    MW08    MW09    MW10    MW11    MW12    MW13    REPO    REPO    REPO
+   plug-in 2 stadi            0.06    0.06    0.05    0.09    0.05    0.04    0.01    0.06    0.03    0.04    0.05    0.03    0.04    0.02    0.01    0.04
+   LSCV                       0.24    0.30    0.19    0.11    0.27    0.20    0.16    0.19    0.21    0.17    0.23    0.24    0.43    0.16    0.13    0.19
+   MLCV (KL)                  0.19    0.14    0.14    0.08    0.07    0.20    0.18    0.15    0.17    0.09    0.22    0.27    0.24    0.13    0.08    0.09
+   Silverman robusto          0.04    0.04    0.06    0.11    0.04    0.01    0.01    0.02    0.01    0.02    0.01    0.01    0.01    0.02    0.01    0.02
+
+   migliore per efficienza ISE media: LSCV
+   migliore per caso peggiore:        LSCV
+
+   h1 EQUIVALENTE (h * sqrt(n)) del selettore raccomandato, per densita'
+   serve a consegnare il risultato nella forma h_n = h1/sqrt(n) richiesta dall'esercizio
+      MW01 gaussian            h1 =   4.531   h1/sigma =  4.536
+      MW02 skewed unimodal     h1 =   3.192   h1/sigma =  3.920
+      MW03 strongly skewed     h1 =   0.769   h1/sigma =  0.744
+      MW04 kurtotic unimodal   h1 =   0.808   h1/sigma =  0.985
+      MW05 outlier             h1 =   0.476   h1/sigma =  1.470
+      MW06 bimodal             h1 =   3.979   h1/sigma =  3.310
+      MW07 separated bimodal   h1 =   2.790   h1/sigma =  1.764
+      MW08 skewed bimodal      h1 =   3.088   h1/sigma =  2.818
+      MW09 trimodal            h1 =   3.295   h1/sigma =  2.582
+      MW10 claw                h1 =   0.943   h1/sigma =  1.083
+      MW11 double claw         h1 =   4.043   h1/sigma =  3.372
+      MW12 asymmetric claw     h1 =   1.288   h1/sigma =  1.162
+      MW13 asym double claw    h1 =   2.305   h1/sigma =  1.935
+      REPO trimodale           h1 =   2.832   h1/sigma =  1.270
+      REPO 5 mode strette      h1 =   2.516   h1/sigma =  0.444
+      REPO 6 mode scale miste  h1 =   2.723   h1/sigma =  0.634

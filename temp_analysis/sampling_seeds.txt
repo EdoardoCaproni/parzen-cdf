@@ -1,0 +1,10 @@
+2000 repliche, n = 500 ciascuna
+
+semi 0..1999 (quelli che usiamo)   rifiuti@5% 0.0475  mediana-p 0.4912  uniformita' p=0.834  corr(media,indice) -0.0009 (banda +-0.0438)
+semi a 64 bit                      rifiuti@5% 0.0405  mediana-p 0.4946  uniformita' p=0.651  corr(media,indice) -0.0066 (banda +-0.0438)
+semi 10^6..10^6+1999               rifiuti@5% 0.0505  mediana-p 0.5117  uniformita' p=0.624  corr(media,indice) -0.0185 (banda +-0.0438)
+
+Media vera della mistura: 0.7000000000000001
+Media delle medie campionarie (semi 0..1999): 0.69930
+
+Errore standard atteso della media campionaria: 0.10003
