@@ -937,27 +937,137 @@ data by $100$ was enough to make it collapse. Twelve components are used.}
 % =====================================================================================
 
 \subsection{The labels: the Parzen Neural Network recipe}
-% TODO
+
+The network is trained by regression against the Parzen estimator, at the sample points and
+nowhere else. For each observation $x_i$ the label is the value the estimator takes there,
+computed \emph{without} the contribution of $x_i$ itself:
+\begin{equation}
+y_i \;=\; \frac{n\,\Fhat(x_i) - \tfrac12}{n - 1}.
+\label{eq:loo}
+\end{equation}
+The correction is exact rather than approximate. In the full estimate~\eqref{eq:parzen-cdf}
+the term contributed by $x_i$ is $K(0) = \tfrac12$ for any symmetric kernel, so subtracting it
+and averaging over the remaining $n-1$ observations gives the leave-one-out value in closed
+form, with no need to recompute anything.
+
+Training only at the sample points, rather than on a dense set of synthetic inputs, is part
+of the recipe rather than an economy. The estimator is trustworthy where there is data and
+increasingly speculative elsewhere; asking the network to match it in the empty regions would
+be fitting an extrapolation.
 
 \subsection{Why a deliberately narrow window}
-% TODO
+
+The window used to build the labels is not the one that minimises the error of the Parzen
+estimator. It is narrower, by a factor of two in our implementation.
+
+The reasoning is the one behind the Parzen Neural Network construction (Trentin). A narrow
+window produces labels that are noisy but close to unbiased: each $y_i$ fluctuates around the
+true value of $F$ at that point rather than around a smoothed version of it. A network with
+limited capacity cannot follow those fluctuations, so it averages them out, and what it
+converges to is closer to the underlying curve than the labels it was shown. Widening the
+window would remove the noise before training, but it would also remove the signal it is
+hiding, and the network cannot recover what the smoothing discarded.
+
+The effect is real but modest at the sample sizes of interest, and Chapter~\ref{sec:results}
+reports it rather than assuming it.
 
 \subsection{What is no longer needed}
-% TODO
+
+Three mechanisms present in the earlier pipeline have no object under the architecture of
+Chapter~\ref{sec:network}, and removing them is not a simplification for its own sake.
+
+The \textbf{monotonicity penalty} added a term $\lambda \cdot \mathrm{mean}\,
+\mathrm{relu}(-\Fhat')$ to the loss, evaluated at $256$ equally spaced points. It is a
+penalty and not a constraint: it can be made small but never zero-guaranteed, it certifies
+only the points it looks at, and $\lambda$ trades against the fit. Under
+Theorem~\ref{thm:validity} there is nothing left for it to enforce.
+
+The \textbf{rectification} step, the running maximum followed by rescaling, was doing real
+work in the old pipeline, which is worth acknowledging: the unconstrained network does
+produce non-monotone curves. Retraining the inherited architecture with its own recipe, about
+one initialisation in four yields a curve that decreases somewhere, in the worst case over
+$6\%$ of the grid points. The step was therefore not decorative. It is simply the wrong
+remedy: a repair applied to the output cannot restore a property the model never had, and it
+introduces its own artefacts, since a flat stretch in the repaired curve means a density of
+exactly zero there.
+
+The \textbf{clamp} that set negative densities to zero is the one that did damage. Zeroing the
+negative part of $\fhat$ adds area, so the identity
+\[
+\int_a^b \fhat \;=\; \Fhat(b) - \Fhat(a)
+\]
+no longer holds, and the two objects handed to the user stop being derivative and primitive
+of one another. On a network that genuinely violates monotonicity the clamp activates on
+between $32$ and $132$ grid points and inflates the mass by $5 \times 10^{-6}$ to $10^{-4}$.
+The magnitude is small; the point is that it is a systematic error in a fixed direction,
+introduced by a step whose purpose was to make the output look valid.
 
 \subsection{Reproducibility}
 \label{sec:reproducibility}
-% TODO
+
+Full-batch training with a fixed number of steps is deterministic, so the only randomness in
+the neural stage is the initialisation of the weights. That makes reproducibility a question
+of when the seed is applied, and it is easy to get wrong: applying a seed after the model has
+been constructed has no effect at all, since the weights have already been drawn.
+
+We check this rather than assume it, with two properties that a correctly seeded procedure
+must satisfy: the same seed must give the same result regardless of what else has consumed
+random numbers beforehand, and different seeds must give different results. Both are asserted
+in the test suite.
+
+The architecture of Chapter~\ref{sec:network} satisfies something stronger, and by
+construction rather than by discipline. Its initialisation places the component centres at
+the quantiles of the standardised sample and gives every component equal weight, which
+consumes no random numbers at all. The trained model is therefore a deterministic function of
+the data, and the seed is irrelevant rather than merely respected. A practical consequence is
+that averaging over repetitions now measures what it should: the variability across
+repetitions comes from the samples alone, not from the accident of where the optimiser
+started.
+
+\takeaway{The network is trained at the sample points only, against leave-one-out values of
+the Parzen estimator computed in closed form, using a window deliberately narrower than the
+one that would minimise the estimator's own error, so that limited capacity averages the
+label noise away. The monotonicity penalty, the rectification and the clamp are all removed:
+the first two have nothing left to enforce, and the third was breaking the identity between
+the delivered density and the delivered distribution function. Initialisation consumes no
+randomness, so the fitted model is a deterministic function of the sample.}
 
 % =====================================================================================
 \section{From the distribution function to the density}
 % =====================================================================================
 
 \subsection{The closed-form derivative}
-% TODO
+
+The density is the derivative of~\eqref{eq:mixture-cdf}, and it can be written down:
+\begin{equation}
+\fhat(x) \;=\; \frac{1}{s} \sum_{j=1}^{J} \pi_j\, a_j\, \sigma(z_j)\,\big(1 - \sigma(z_j)\big),
+\qquad z_j = a_j \frac{x - \mu}{s} + b_j .
+\label{eq:mixture-pdf}
+\end{equation}
+Every factor is positive, so the density is positive without any clamping; the sum of the
+$\pi_j$ is one, so it integrates to one without any normalisation; and it is the exact
+derivative of the delivered distribution function, not an approximation to it, so the two
+outputs are consistent by algebra rather than by numerical accident.
+
+The final stage of the pipeline is therefore a formula rather than a procedure. There is no
+grid, no differentiation step, and nothing to tune.
 
 \subsection{Why finite differences on a grid were a problem}
-% TODO
+
+It is worth being concrete about what this replaces, since the earlier arrangement also
+produced a plausible-looking density.
+
+There, the density was obtained by evaluating the repaired curve at the nodes of a grid and
+taking centred differences between neighbouring values. Three things follow from that. The
+result depends on the grid spacing, which nobody had calibrated: too coarse and narrow peaks
+are flattened, too fine and the differencing amplifies whatever wiggle the curve has. The
+output is a table of numbers rather than a function, so evaluating the density at a point
+that is not a node requires interpolating, and evaluating it outside the grid is impossible.
+And the clamp discussed in Section~6.3 was applied to the result, breaking the relationship
+between the two delivered curves.
+
+None of this was visible in the reported figures, because all of them were computed on the
+same grid that produced the estimate.
 
 % =====================================================================================
 \section{Delivering an estimate without knowing the truth}
@@ -965,16 +1075,140 @@ data by $100$ was enough to make it collapse. Twelve components are used.}
 % =====================================================================================
 
 \subsection{The evaluation domain}
-% TODO
+
+The estimate is a function and needs no domain. Everything one does \emph{with} it does: a
+plot needs an interval, an integral needs limits, and any diagnostic that involves the mass
+has to say over what. The question is where that interval comes from when the distribution is
+unknown.
+
+The earlier pipeline took it from the truth, as the interval spanned by the component means
+plus or minus five component standard deviations, and in a few scripts it was hard-coded
+outright. On the data the method is meant for there are no component means, so the interval
+has to be built from the sample. The obvious candidate is the range of the data padded by
+some multiple of the window,
+\[
+[\,\min x - k h,\ \max x + k h\,],
+\]
+and it turns out to be a poor one, for a reason that took a measurement to see.
+
+The window is chosen to resolve the finest structure in the density, so it is \emph{small}
+precisely on the distributions whose tails are wide: a narrow spike sitting inside a broad
+component pulls $h$ down, while the broad component's tails still extend over a distance of
+order $\sigma$. Padding by a multiple of $h$ is then negligible against what needs covering.
+On the kurtotic and outlier densities of the benchmark the mass left outside barely improves
+between $k = 0$ and $k = 10$.
+
+Anchoring the padding to the dispersion instead works, and works with a comfortable margin:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Rule} & \textbf{Mean} & \textbf{Worst case} \\
+\midrule
+data range only & $3.2 \times 10^{-3}$ & $4.6 \times 10^{-3}$ \\
+padded by $3h$ & $1.2 \times 10^{-3}$ & $3.0 \times 10^{-3}$ \\
+padded by $10h$ & $3.9 \times 10^{-4}$ & $1.7 \times 10^{-3}$ \\
+\textbf{padded by} $\mathbf{3\shat}$ & $\mathbf{7.0 \times 10^{-6}}$ &
+  $\mathbf{1.1 \times 10^{-4}}$ \\
+padded by $3 \times$ robust scale & $5.4 \times 10^{-5}$ & $7.9 \times 10^{-4}$ \\
+quantiles of the estimated CDF & $8.6 \times 10^{-4}$ & $2.8 \times 10^{-3}$ \\
+\bottomrule
+\end{tabular}
+\caption{True probability mass left outside the evaluation domain, sixteen densities, eight
+samples each, $n = 500$.}
+\label{tab:domain}
+\end{table}
+
+Two rows are instructive beyond the winner. Using the data range alone leaves about
+$2/(n+1)$ outside, which is what order statistics dictate and is independent of the density;
+that is the floor any padding has to improve on. And the rule that looked most elegant, using
+the quantiles of the estimated distribution function to decide where to stop, performs badly
+for the same reason as the $h$-padded rules: the tail of $\Fhat$ decays at a rate set by $h$,
+so its quantiles stay close to the data.
+
+The robust scale, which is the right choice for selecting the window, is the wrong one here:
+it is designed to \emph{under}-estimate dispersion in the presence of heavy tails, which is
+useful when deciding resolution and harmful when deciding extent. The general principle is
+that the dispersion of the sample sets how far to go, while the window sets how finely to
+sample in between, and the two jobs need different quantities.
+
+We use $[\min x - 3\shat,\ \max x + 3\shat]$. Going wider is not free, since the number of
+grid nodes is finite and widening spends resolution where there is nothing to see.
 
 \subsection{Diagnostics computable from the samples alone}
-% TODO
+
+On the data this method is built for there is no true curve to compare against, so the usual
+quality figures are unavailable. What remains has to be computed from the sample, and the
+question of which such quantities are actually informative has an answer that is not obvious.
+
+We measured it directly. For each density, sweeping the window over a wide range, we recorded
+the true integrated squared error alongside four candidate indicators, and asked whether each
+indicator orders the windows the way the truth does. Rank correlation answers that question:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Indicator} & \textbf{Rank correlation with the true error} &
+\textbf{Cost if used to choose $h$} \\
+\midrule
+LSCV score & $+0.94$ & $1.21$ \\
+leave-one-out log-likelihood & $+0.86$ & $1.52$ \\
+mass over the domain & $+0.44$ & $5.95$ \\
+KS against the empirical CDF & $-0.03$ & $13.66$ \\
+\bottomrule
+\end{tabular}
+\caption{Sixteen densities, eight samples each, twenty-five windows per sample. The last
+column is the efficiency of the window that minimises each indicator.}
+\label{tab:diagnostics}
+\end{table}
+
+The last row is the one we want to draw attention to, because it is the indicator a reader
+would most expect to see. Comparing the estimated distribution function against the empirical
+one, and reporting how closely they agree, looks like the natural way to demonstrate that an
+estimate fits its data. It is anticorrelated with the actual error, and choosing a window by
+it costs a factor of fourteen on average and ninety-five in the worst case.
+
+The reason is structural. As $h \to 0$ the Parzen estimate converges to the empirical
+distribution function by construction, so that comparison rewards the narrowest window
+available, which is the most overfitted one. It measures how closely the estimate reproduces
+the sample, and reproducing the sample is precisely what a density estimate should not do.
+This report does not include such a figure, and the implementation does not expose one.
+
+What we report instead is the LSCV score and the leave-one-out log-likelihood, which rank
+windows almost as the truth would, together with the selected window in both forms, the mass
+over the domain and the number of monotonicity violations. The last two are diagnostics rather
+than results: under Theorem~\ref{thm:validity} the violations must be zero, so a non-zero
+count is a bug and not a phenomenon. The mass is \emph{reported and not imposed}, which is the
+substantive difference from the earlier pipeline. A value of $0.9998$ says something true
+about the estimate and the domain; a value of exactly $1$ obtained by rescaling says nothing.
+
+A further diagnostic comes for free. Silverman's rule and the plug-in are cheap to evaluate
+even when they are not used, and the ratio between them and the selected window is
+informative: a discrepancy beyond a factor of three indicates a target with structure at
+several scales, since that is exactly the situation in which the normal-reference rules
+oversmooth. On the reference trimodal mixture that ratio is about six, and the implementation
+raises it as a warning rather than hiding it.
 
 \subsection{The interface}
-% TODO
+
+The whole procedure is reached through one function, which takes a vector of observations and
+returns an object exposing $\Fhat$, $\fhat$, the selected window in both forms, the evaluation
+domain and the diagnostics. It imports nothing that describes a distribution; a test in the
+suite parses the module and fails if it ever does.
+
+For use from outside there is a command line:
+\begin{quote}
+\texttt{python -m parzen\_cdf.run --samples data.csv --out results/}
+\end{quote}
+which reads a vector of numbers from a \texttt{.csv}, \texttt{.txt} or \texttt{.npy} file and
+writes the two estimated curves tabulated over the domain, the diagnostics as JSON, the fitted
+model, and a figure. Nothing in that path requires knowing where the data came from.
 
 % =====================================================================================
 \section{Results}
+\label{sec:results}
 % =====================================================================================
 
 \subsection{Against the previous version of the pipeline}
