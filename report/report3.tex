@@ -4,8 +4,6 @@
 % STRUCTURE: one chapter per stage of the pipeline, in the order the data flows through
 % them. Each chapter says what the stage does, why it is built that way, and what it
 % replaces with respect to earlier versions of the project.
-%
-% This file is the skeleton: "TODO" comments say what belongs in each section.
 % =====================================================================================
 
 \documentclass[11pt]{article}
@@ -16,6 +14,7 @@
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}   % colonne p{} con allineamento, usate nelle tabelle larghe
 \usepackage{float}
 \usepackage{xcolor}
 \usepackage{hyperref}
@@ -43,12 +42,29 @@ and of the density derived from it\\
 \maketitle
 
 \begin{abstract}
-% TODO: given a finite sample and no assumption on the distribution behind it, we estimate
-% the CDF with a network trained on Parzen-window labels and differentiate it to obtain the
-% density. Announce the three non-obvious choices: the window comes from cross-validation
-% rather than from a rule of thumb; the architecture is a valid CDF by construction; the
-% quality is reported through quantities computable without knowing the truth. Close with
-% the limitation we state openly (sharp edges).
+\noindent Given a finite sample and no assumption about the distribution behind it, we
+estimate the cumulative distribution function with a small neural network trained on
+Parzen-window labels, and obtain the density by differentiating it. The report is
+self-contained: every quantitative claim states how it was obtained, and the scripts that
+produce each number are listed in Appendix~\ref{app:repro}.
+
+Three choices distinguish this version of the work from its predecessors, and each is
+argued rather than asserted. First, the window width is chosen by cross-validation rather
+than by a rule of thumb: we show that a rule of the form $h_1 = c\,\shat$ cannot exist,
+because the optimal constant varies by more than a factor of ten across distributions, and
+that recalibrating it on a larger benchmark makes matters worse rather than better. Second,
+the network is an architecture whose output is a valid distribution function for every
+value of its parameters, so that monotonicity, the limits at infinity, non-negativity of
+the density and unit mass are guaranteed by construction instead of being repaired
+afterwards on a grid. Third, since on the data the method is meant for the true
+distribution is unknown, quality is reported through quantities computable from the sample
+alone; we measured which of those quantities are informative, and found that the most
+natural one is actively misleading.
+
+We also state a limitation openly: a mixture of logistic distribution functions has
+strictly positive density on the whole line, and therefore rounds off sharp edges. On
+distributions with compact support the error grows by a factor between three and fourteen.
+We checked whether more capacity repairs this, and it does not come for free.
 \end{abstract}
 
 \tableofcontents
@@ -59,232 +75,559 @@ and of the density derived from it\\
 % =====================================================================================
 
 \subsection{The problem}
-% TODO: x_1..x_n i.i.d. from an unknown F; estimate F and from it f. Why go through the CDF
-% rather than estimating f directly: it is what the assignment asks, but it also has a
-% technical reason (the CDF is smoother, and integration averages noise away).
+
+We are given $n$ observations $x_1,\dots,x_n$, drawn independently from a distribution
+$F$ that we know nothing about, and we are asked for two things: an estimate $\Fhat$ of the
+distribution function, and an estimate $\fhat$ of the density, obtained by differentiating
+the first.
+
+The order matters, and it is not incidental. One could estimate the density directly and
+integrate it; going the other way round --- estimating $F$ first and differentiating --- is
+what the assignment prescribes, and it also has a technical justification worth stating
+early. A distribution function is a smoother object than a density: it is an integral, and
+integration averages away exactly the kind of local fluctuation that makes density
+estimation hard. A finite sample produces a jagged density estimate but a rather well
+behaved cumulative one. The price is paid at the end, when differentiating brings the
+fluctuation back, and much of this report is about paying that price as little as possible.
+
+There is a second reason, specific to the neural approach. Regressing a curve that is
+bounded between $0$ and $1$, monotone, and asymptotically flat is a far better conditioned
+problem than regressing a density, which is unbounded above, has no natural scale, and must
+integrate to one. If the network is asked for a distribution function, its structure can be
+made to guarantee all the properties we want; if it is asked for a density, guaranteeing
+non-negativity and unit mass at the same time is considerably harder.
 
 \subsection{What is delivered}
-% TODO: two functions evaluable at any point, not tables; a value of h1 in the required
-% form h_n = h1/sqrt(n); a diagnostic block computable without the truth; a command line.
+
+The pipeline takes a vector of numbers and returns:
+
+\begin{itemize}
+  \item two functions, $\Fhat$ and $\fhat$, evaluable at any real point --- not tables
+        sampled on a grid;
+  \item a window width $\hhat$, reported also as $\hhat_1 = \hhat\sqrt{n}$ so that it fits
+        the schedule $h_n = h_1/\sqrt{n}$;
+  \item a block of diagnostics computable without knowing the true distribution;
+  \item a command-line entry point, so that the procedure can be run by someone who did not
+        write it, on data we have never seen.
+\end{itemize}
 
 \subsection{How to read this document}
-% TODO: every quantitative claim states how it was obtained. Proofs are in appendix A, the
-% scripts producing each number in appendix B. The "what we do not claim" sections are
-% deliberate.
+
+Every quantitative statement is accompanied by how it was obtained: on how many
+distributions, over how many repetitions, and with which script. Proofs are collected in
+Appendix~\ref{app:proofs} so that the main text stays readable; statements and consequences
+appear where they are used. Appendix~\ref{app:repro} maps each experiment to the file that
+reproduces it.
+
+Several sections end with an explicit list of what we are \emph{not} claiming. These are
+deliberate. During this work a number of plausible claims turned out to be false when
+measured, including some of our own, and the habit of writing down the boundary of a result
+proved more useful than the result itself.
 
 \subsection{Where this work comes from}
-% TODO: short and honest history; it explains why the project looks the way it does. First
-% pass (window from Silverman's rule, mis-scaled for the logistic kernel); revision that
-% fixed the scale and introduced the h1/sqrt(n) schedule with the 1.5-sigma rule; this
-% third pass, which reopens the rule, the architecture and the way results are delivered.
-% Say plainly what replaces what.
+
+The project went through three passes, and the reason the present one exists is worth
+telling, because it explains several choices that would otherwise look arbitrary.
+
+The \textbf{first pass} built the Parzen-window estimator and chose its window with
+Silverman's rule of thumb. The rule is standard, but its constant is derived for a Gaussian
+kernel, that is, for a kernel with unit standard deviation. The kernel actually in use is
+the logistic one, whose standard deviation is $\pi/\sqrt3 \approx 1.814$. Applying the rule
+without correcting for this oversmooths by exactly that factor. It is a small oversight with
+a visible cost: on the reference trimodal mixture at $n = 500$, averaged over ten samples,
+the uncorrected rule gives a Kolmogorov--Smirnov distance of $0.0628$ against $0.0449$ for
+the corrected one, and an integrated squared error on the density of $0.0334$ against
+$0.0154$ --- more than a factor of two.
+
+The \textbf{second pass} fixed the scale, adopted the schedule $h_n = h_1/\sqrt{n}$, and
+looked for a rule of thumb for the remaining constant, settling on $h_1 = 1.5\,\shat$. It
+also introduced the neural stage, trained on Parzen labels, with monotonicity repaired
+downstream by taking a running maximum of the estimated curve and rescaling it to $[0,1]$.
+
+The \textbf{third pass} is this one. It began as a review and turned into a redesign,
+because three things did not survive checking. The rule for $h_1$ was calibrated and
+validated on the same small family of distributions, which measures how well one has
+interpolated one's own benchmark rather than how well the rule generalises. The network's
+guarantees were obtained after the fact, on a grid whose extent was taken from the true
+distribution --- an object that does not exist when the method is applied to real data. And
+the pipeline had no way of reading a sample from a file at all.
+
+Two consequences for the reader. First, this report re-derives everything from the
+beginning and does not rely on the earlier write-ups; where an earlier conclusion is
+superseded, we say so and give the measurement that supersedes it. Second, several of the
+numbers reported in the earlier passes are not reproducible as stated, for a reason
+explained in Section~\ref{sec:reproducibility}: a defect in how random seeds were applied
+meant that runs labelled with different seeds were not actually controlled by them. That
+defect has been fixed, and every figure in this report comes from runs that can be
+reproduced.
 
 % =====================================================================================
 \section{Development data: generating honest samples}
 % =====================================================================================
 
 \subsection{Why the generator matters even though it is not part of the pipeline}
-% TODO: the samples we calibrate and measure on are produced by us. A biased generator
-% would contaminate every downstream conclusion without giving any signal.
+
+The estimator never sees the generator. It receives a vector of numbers and knows nothing
+about where they came from, which is the whole point of a nonparametric method. It would
+therefore be tempting to treat the way we produce test data as an implementation detail.
+
+It is not, for a simple reason: every number in this report was measured on samples we
+generated ourselves. Calibration of the window, the choice of the number of network
+components, the comparison between architectures --- all of it rests on synthetic data drawn
+from distributions whose truth we know, because otherwise there would be nothing to compare
+against. A generator with a subtle bias would contaminate every one of those conclusions,
+and it would do so silently: nothing downstream would look wrong. The generator is not in
+the pipeline, but it is upstream of every measurement, and it deserves the same scrutiny as
+the estimator.
 
 \subsection{Ancestral sampling from a mixture}
-% TODO: a mixture defined as a two-stage process; the one-line proof that the method is
-% exact; cost O(n).
+
+Our test distributions are mixtures: densities of the form
+\begin{equation}
+f(x) \;=\; \sum_{i=1}^{k} w_i\, f_i(x), \qquad w_i \ge 0, \quad \sum_i w_i = 1 ,
+\label{eq:mixture}
+\end{equation}
+where the components $f_i$ are ordinary densities, typically normal. Mixtures are convenient
+because their distribution function is the same weighted sum of the component distribution
+functions, so the reference curves against which we score are available in closed form.
+
+A mixture is best understood not as a formula but as a two-stage random process, with a
+hidden variable: first draw which component will generate the point, then draw the point
+from that component. Sampling by following those two stages in order is called
+\emph{ancestral sampling}, a name borrowed from graphical models, where one draws each
+variable after its parents. In our case the parent is the component index $I$ and the child
+is the observation $X$:
+\[
+I \sim \text{Categorical}(w_1,\dots,w_k), \qquad X \mid I = i \;\sim\; f_i .
+\]
+
+This is not an approximation of the mixture; it \emph{is} the mixture, and the verification
+is one line:
+\[
+\Pr(X \le x) \;=\; \sum_i \Pr(I = i)\, \Pr(X \le x \mid I = i) \;=\; \sum_i w_i F_i(x),
+\]
+which is the mixture distribution function by definition. There is no tolerance, no
+convergence, no numerical error --- and the cost is $O(n)$, one categorical draw and one
+component draw per observation, both vectorised.
+
+The alternative would be \emph{inverse transform sampling}: if $U$ is uniform on $(0,1)$ then
+$F^{-1}(U)$ has distribution function $F$, for any $F$ whatsoever. It is the universal
+method, and for a mixture it is also the wrong one: the distribution function of a mixture of
+normals cannot be inverted in closed form, so each sample would require a numerical root
+search. The result would be exact only up to the tolerance of that search, and would cost
+$O(n \times \text{iterations})$. We implemented it anyway and compared: the two samples are
+statistically indistinguishable (two-sample Kolmogorov--Smirnov test, $p = 0.696$). The
+choice is therefore not between right and wrong, but between exact-and-cheap and
+approximate-and-expensive.
 
 \subsection{The Ziggurat algorithm}
-% TODO: introduce it properly but briefly. The problem (uniforms to normals), the
-% alternatives (inversion, Box-Muller, polar), the idea of equal-area strips, why it is
-% exact rather than approximate. Make clear it is NumPy's code, not ours, and that it sits
-% at a different level from ancestral sampling: the two compose, they are not alternatives.
+
+Ancestral sampling reduces the problem to drawing from a single normal component, which
+leaves the question of how a normal variate is produced from uniform random bits. This is a
+classical problem with several classical answers, and it is worth a paragraph because the
+efficiency of the whole simulation depends on it.
+
+The obvious approach, inverting the normal distribution function, requires evaluating a
+special function for every sample. The Box--Muller transform produces two normal variates
+from two uniforms using a logarithm, a square root and a pair of trigonometric functions;
+Marsaglia's polar method removes the trigonometry at the cost of a rejection step. All of
+them are exact; all of them are relatively expensive per sample.
+
+The \emph{Ziggurat} method (Marsaglia and Tsang, 2000) is a rejection sampler designed so
+that the expensive branch is almost never taken. Consider the right half of the bell curve
+and cover it with a stack of horizontal strips --- around 128 or 256 of them --- chosen to
+all have \emph{exactly the same area}, plus a tail region at the bottom with that same area.
+The picture resembles a stepped Mesopotamian ziggurat, which is where the name comes from.
+Because the strips have equal area, choosing one uniformly at random is a matter of masking a
+few random bits.
+
+Within a strip, the density curve enters from one side: part of the rectangle lies entirely
+underneath the curve, and a thin fringe near the edge sticks out above it. The algorithm
+draws a strip index, draws a horizontal coordinate uniformly inside the strip, and then
+checks a single inequality: if the point falls in the safe region it is accepted immediately,
+with no evaluation of the exponential at all. Only if it falls in the fringe does the
+algorithm evaluate the density and accept with the appropriate probability; and only if the
+bottom strip is drawn does it fall back to a separate routine for the tail. With 256 strips
+the fast branch covers roughly 98--99\% of draws, which is why the method costs little more
+than one uniform and one comparison per sample.
+
+The point that matters for us is that this is a rejection sampler, and rejection sampling is
+\emph{exact}: the accepted points are distributed precisely according to the target density,
+because the procedure is equivalent to sampling uniformly under the curve and keeping the
+abscissa. The speed is not bought with accuracy, and there is no approximation to declare.
+
+Two clarifications, since the two levels are easy to confuse. First, the Ziggurat is not
+something we implemented: it is the algorithm NumPy uses internally when it draws a
+standard normal variate. We verified this rather than assuming it --- the
+documentation strings do not mention the algorithm, but the compiled library that
+\texttt{Generator} links against exports symbols named after it, among them the tail
+cut-off constant of the normal Ziggurat and its reciprocal, while the legacy
+\texttt{RandomState} module exports no such symbol, consistent with its use of the polar
+method. Second, ancestral sampling and the Ziggurat are
+not alternatives: they sit at different levels and compose. Ancestral sampling decides
+\emph{which} normal to draw from; the Ziggurat is how each individual normal variate is
+actually produced.
 
 \subsection{Checking the generator}
-% TODO: the tests performed and their outcome. Stress the right test: uniformity of the
-% p-values, not "how many rejections did I get". The check on consecutive seeds.
+
+What can and cannot be verified should be stated separately. That NumPy implements the
+Ziggurat correctly is not something we can prove; what we can check, and what actually
+matters, is that the output has the properties we rely on: that it follows the intended
+distribution, that the components appear with the intended probabilities, and that
+successive draws are independent.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.26\linewidth}>{\raggedright\arraybackslash}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Check} & \textbf{Method} & \textbf{Result} \\
+\midrule
+Fit to the true CDF & KS test, 300 replicates & rejections at 5\%: $0.050$ ($n{=}500$),
+  $0.047$ ($n{=}2000$) \\
+Uniformity of $p$-values & KS test on the $p$-values & passed (see below) \\
+Component frequencies & $\chi^2$ against the weights & $p = 0.533$; observed
+  $0.3003 / 0.5011 / 0.1986$ \\
+Serial independence & autocorrelation, lags 1--100 & all within $\pm 0.0044$;
+  runs test $z = -0.93$ \\
+Sampling strategy & ancestral vs.\ inversion & indistinguishable, $p = 0.696$ \\
+\bottomrule
+\end{tabular}
+\caption{Checks on the sample generator. The second row is the one that matters most.}
+\label{tab:generator}
+\end{table}
+
+The second check deserves a comment, because it is the one usually omitted. A correct
+generator should not merely \emph{pass} a goodness-of-fit test; the $p$-values it produces
+should be \emph{uniformly distributed}. A generator whose $p$-values cluster near one would
+be as suspicious as one that rejects too often, since it would mean the samples fit the
+target better than chance allows. Testing the uniformity of the $p$-values is therefore the
+right check, and it is the one we ran.
+
+One further check concerns us directly. Every experiment in this report averages over
+repetitions obtained with seeds $0, 1, 2, \dots$, and if nearby seeds produced correlated
+streams then those repetitions would not be independent and every reported average would be
+optimistic. With 300 replicates a few borderline values appeared, so we repeated the test
+with 2000:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+\textbf{Seeds} & \textbf{Rej.\ 5\%} & \textbf{Median $p$} &
+\textbf{Uniformity} & \textbf{Corr.} \\
+\midrule
+$0 \dots 1999$ (what we use) & $0.0475$ & $0.4912$ & $0.834$ & $-0.0009$ \\
+random 64-bit                & $0.0405$ & $0.4946$ & $0.651$ & $-0.0066$ \\
+$10^6 \dots 10^6{+}1999$     & $0.0505$ & $0.5117$ & $0.624$ & $-0.0185$ \\
+\bottomrule
+\end{tabular}
+\caption{Consecutive small seeds introduce no structure. The 95\% band for the correlation
+is $\pm 0.0438$; all three schemes sit well inside it.}
+\label{tab:seeds}
+\end{table}
+
+The earlier borderline values were fluctuations. As an independent confirmation, the average
+of the 2000 sample means is $0.69930$ against a true mixture mean of $0.70000$, a discrepancy
+of about a third of a standard error.
 
 \subsection{A note on circularity}
-% TODO: the argument "the generator never touches the CDF, so learning F is not cheating"
-% does not hold, and should be replaced by the correct one: the estimator sees only the
-% samples.
+
+There is a tempting argument that we deliberately do not make. It runs: the generator never
+evaluates the distribution function --- ancestral sampling and the Ziggurat both avoid it ---
+therefore estimating $F$ from the samples is not circular.
+
+The argument does not hold, and it is worth explaining why, because it sounds convincing.
+Samples drawn independently from $F$ carry no information about $F$ beyond the statistical
+information any such sample would carry, regardless of the algorithm that produced them. Had
+we sampled by inverting the distribution function, the resulting $x_i$ would be
+indistinguishable from ours, and no estimator could exploit the difference. There is no
+leakage to eliminate, so there is nothing for this argument to defend against.
+
+What does need to be established is a different and simpler statement: that the estimator
+sees the sample and nothing else. That is a property of the code, verifiable by reading it,
+and Section~\ref{sec:delivery} explains how the present design makes it structural rather
+than a matter of discipline.
+
+\takeaway{The generator is not part of the estimation pipeline, but every measurement in
+this report depends on it, so it was checked rather than assumed. Ancestral sampling is
+exact by construction and costs $O(n)$; the Ziggurat, which produces the individual normal
+variates, is an exact rejection sampler and not a fast approximation. The two operate at
+different levels and compose.}
 
 % =====================================================================================
 \section{The Parzen window estimator}
 % =====================================================================================
 
 \subsection{Definition and intuition}
-% TODO: a kernel centred on each observation; the average; the role of h.
 
-\subsection{The logistic kernel and a closed-form CDF}
-% TODO: why the logistic one: its antiderivative is the sigmoid, so the estimated CDF is
-% exact and smooth, and the density is exactly its derivative. Comparison with the other
-% kernels in the registry.
+The Parzen window estimator replaces each observation by a small bump and averages them.
+Given a kernel $K$ --- a density, usually symmetric and centred at zero --- and a window
+width $h > 0$, the density estimate is
+\begin{equation}
+\fhat(x) \;=\; \frac{1}{n h} \sum_{i=1}^{n} k\!\left(\frac{x - x_i}{h}\right),
+\label{eq:parzen-pdf}
+\end{equation}
+where $k$ is the kernel density. The intuition is that a sample tells us where probability
+mass is, but says nothing about how it is spread in between; the kernel supplies that missing
+smoothness, and $h$ decides how much of it.
+
+The window is the only real choice. Too small, and the estimate degenerates towards a
+collection of spikes at the observations, reproducing the sample rather than the
+distribution; too large, and genuine structure is smoothed away, with separate modes merging
+into one. Everything else --- the shape of the kernel, the details of the implementation ---
+matters far less. Chapter~\ref{sec:window} is devoted to this single number.
+
+\subsection{The logistic kernel and a closed-form distribution function}
+
+Since what we want first is the distribution function rather than the density, it pays to
+choose a kernel whose antiderivative we know. Integrating~\eqref{eq:parzen-pdf} gives
+\begin{equation}
+\Fhat(x) \;=\; \frac{1}{n} \sum_{i=1}^{n} K\!\left(\frac{x - x_i}{h}\right),
+\label{eq:parzen-cdf}
+\end{equation}
+with $K$ the kernel's own distribution function. For the \emph{logistic} kernel that
+function is the sigmoid, $K(u) = 1/(1 + e^{-u})$, and the estimate becomes a plain average of
+sigmoids: smooth, strictly increasing, bounded between $0$ and $1$, and available in closed
+form at any point. Its derivative is exactly~\eqref{eq:parzen-pdf}, so the density and the
+distribution function are consistent by construction rather than by numerical
+differentiation. We verified this to machine precision: the largest discrepancy between the
+analytic kernel density and the numerical derivative of the sigmoid is $1.3 \times 10^{-8}$
+over a fine grid.
+
+That the estimate is a sum of sigmoids will matter again in Chapter~\ref{sec:network}, where
+the chosen network architecture turns out to have exactly the same form.
+
+The choice of kernel carries a subtlety that caused a real error in the first pass of this
+project. Kernels differ in how much they smooth at a given $h$, because they have different
+spreads:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Kernel} & \textbf{Standard deviation} \\
+\midrule
+logistic & $\pi/\sqrt{3} \approx 1.8138$ \\
+Gaussian & $1$ \\
+box (uniform) & $1/\sqrt{3} \approx 0.5774$ \\
+Epanechnikov & $1/\sqrt{5} \approx 0.4472$ \\
+triangular & $1/\sqrt{6} \approx 0.4082$ \\
+\bottomrule
+\end{tabular}
+\caption{The available kernels and their spreads. Classical bandwidth rules assume the
+Gaussian row.}
+\label{tab:kernels}
+\end{table}
+
+Every classical bandwidth rule --- Silverman's, Scott's, the plug-in family --- is derived
+for a kernel of unit standard deviation. Using such a rule with the logistic kernel and no
+correction therefore smooths $1.814$ times more than intended. The fix is to divide the
+recommended width by the kernel's standard deviation, so that the two kernels smooth
+equivalently; we refer to this below as \emph{variance matching}. The cost of omitting it is
+not academic: on the reference trimodal mixture at $n = 500$, averaged over ten samples, the
+uncorrected rule gives a KS distance of $0.0628$ against $0.0449$, and an integrated squared
+error of $0.0334$ against $0.0154$.
 
 \subsection{The window must shrink as the sample grows}
-% TODO: the consistency conditions (h to 0, n*h to infinity) and the h_n = h1/sqrt(n)
-% schedule.
+
+For the estimator to converge to the true density, the window must satisfy two classical
+conditions: $h_n \to 0$, so that the smoothing eventually vanishes, and $n h_n \to \infty$,
+so that the number of observations effectively contributing to each point still grows. The
+first alone would leave a spike at every sample point; the second alone would leave a
+permanently oversmoothed estimate.
+
+The schedule used throughout this project,
+\begin{equation}
+h_n \;=\; \frac{h_1}{\sqrt{n}},
+\label{eq:schedule}
+\end{equation}
+satisfies both: $h_n \to 0$ and $n h_n = h_1 \sqrt{n} \to \infty$. It reduces the choice of a
+sequence of windows to the choice of a single number $h_1$, which is why it is convenient,
+and Chapter~\ref{sec:window} is about how that number should be chosen. We keep this form
+throughout, and Section~\ref{sec:schedule-cost} quantifies what it costs relative to the rate
+that would be optimal.
 
 \subsection{How an estimate is scored}
-% TODO: KS on the CDF, ISE on the density, and why the second is the one that matters
-% here. The oracle as a normaliser, not as a selector. Relative efficiency.
+\label{sec:scoring}
+
+Because the test distributions are known, every estimate can be compared against the truth.
+We use two measures, and they answer different questions.
+
+The \textbf{Kolmogorov--Smirnov distance} $\sup_x |\Fhat(x) - F(x)|$ scores the distribution
+function. It has a natural reference point: the empirical distribution function, which uses
+no smoothing at all, has expected KS distance $\sqrt{\pi/2}\,\ln 2 / \sqrt{n} \approx
+0.8687/\sqrt{n}$. No estimator can reliably do much better than this, so it serves as a
+statistical floor --- at $n = 500$ it is $0.0388$.
+
+The \textbf{integrated squared error} $\int (\fhat - f)^2$ scores the density. This is the
+measure that matters most here, since the density is what the assignment ultimately asks for,
+and it is far less forgiving than the first. Integration is a smoothing operation, so errors
+that are plainly visible in a density estimate can be almost invisible in its integral. We
+will encounter a case where a badly chosen window costs a factor of two on the KS distance
+and a factor of seven and a half on the integrated squared error; judging that window by the
+first number alone would have declared it acceptable.
+
+Two derived quantities are used when comparing selectors. The \textbf{oracle} is the window
+that minimises the true error for the sample at hand. It is not a selector --- it uses the
+answer --- and it is never part of any procedure we propose; it serves only as a
+normaliser, since absolute errors are not comparable across distributions with different
+shapes. The \textbf{relative efficiency} of a selector is its error divided by the oracle's,
+a number at least $1$, where $1$ means it found the best window achievable with that
+estimator on that sample. Reporting efficiencies rather than raw errors is what makes it
+meaningful to average across a benchmark of very different densities.
+
+\takeaway{The logistic kernel is chosen because its antiderivative is the sigmoid, which
+makes the estimated distribution function exact, smooth and available in closed form, with
+the density as its exact derivative. Classical bandwidth rules assume a unit-variance kernel
+and must be rescaled by $\pi/\sqrt3$ before being used with it; omitting that correction
+costs a factor of more than two on the density error. Density error is scored by integrated
+squared error, which is the demanding measure, and selectors are compared by efficiency
+relative to an oracle that is used only as a normaliser.}
 
 % =====================================================================================
 \section{The window: the central problem}
+\label{sec:window}
 % =====================================================================================
 
 \subsection{The rule of thumb, and why it could not work}
-% TODO: the h1 = 1.5*sigma rule of the previous pass; the three methodological defects
-% (self-referential benchmark, wrong anchoring quantity, wrong validation metric).
+% TODO
 
 \subsection{An external test bench}
-% TODO: the Marron and Wand densities, what they are and why they are used; our three
-% additions.
+% TODO
 
 \subsection{The selectors compared}
-% TODO: list and form of each; the scale correction for the logistic kernel; the
-% leave-one-density-out calibration for those with a free constant.
+% TODO
 
 \subsection{The central result: the constant is not a constant}
-% TODO: the spread of the optimal constant; the fact that recalibrating it makes things
-% worse.
+% TODO
 
 \subsection{Least-squares cross-validation, and its measured instability}
-% TODO: the ranking; the instability measured, and why it does not transfer to the error.
+% TODO
 
 \subsection{What the square-root-of-n schedule costs}
-% TODO: the empirical exponent against the theoretical one; the measured cost of carrying
-% h1 across budgets; why at a fixed budget it costs nothing.
+\label{sec:schedule-cost}
+% TODO
 
 \subsection{What is delivered}
-% TODO: h1 estimated inside the required form; the clarification that h1 was never a
-% universal constant.
+% TODO
 
 % =====================================================================================
 \section{The network: enforcing the shape of a distribution function}
+\label{sec:network}
 % =====================================================================================
 
 \subsection{What the output must guarantee}
-% TODO: the four requirements (range, monotonicity, limits, differentiability) and why the
-% fourth is needed here (the density is the derivative).
+% TODO
 
 \subsection{The first attempt and its limits}
-% TODO: MLP with a final sigmoid, monotonicity repaired downstream by a running maximum and
-% a rescaling. What it actually guarantees and what it does not.
+% TODO
 
 \subsection{The saturation theorem}
-% TODO: statement and consequence: the tails are unreachable with finite parameters.
-% Pointer to the proof. Supporting measurements.
+% TODO
 
 \subsection{The chosen architecture}
-% TODO: convex mixture of logistic CDFs; its relation to the Parzen estimator (same form,
-% with learned weights, centres and windows); the reference to sigmoidal flows.
+% TODO
 
 \subsection{The guarantees, proved}
-% TODO: statement; the point that the hypotheses hold on the whole parameter space, not on
-% a feasible region to be policed. Numerical verification.
+% TODO
 
 \subsection{No loss of expressiveness}
-% TODO: with J = n the family contains the Parzen estimator exactly; density of the family
-% as J grows.
+% TODO
 
 \subsection{Standardisation and equivariance}
-% TODO: the measured problem (translate the data and the estimate collapses), the theorem,
-% the fix.
+% TODO
 
 \subsection{How many components}
-% TODO: the calibration; the asymmetry of the risk; the value chosen.
+% TODO
 
 % =====================================================================================
 \section{Training}
 % =====================================================================================
 
 \subsection{The labels: the Parzen Neural Network recipe}
-% TODO: leave-one-out labels at the sample points only; the formula and why the point's own
-% contribution is subtracted.
+% TODO
 
 \subsection{Why a deliberately narrow window}
-% TODO: noisy but unbiased labels, averaged away by limited capacity.
+% TODO
 
 \subsection{What is no longer needed}
-% TODO: monotonicity penalty, rectification, clamping: why they were there and why with
-% this architecture they have no object. The clamp broke the identity between density and
-% derivative.
+% TODO
 
 \subsection{Reproducibility}
-% TODO: the defect found (the seed did not control initialisation) and how it was closed;
-% the stronger property of the new architecture (no residual randomness at all).
+\label{sec:reproducibility}
+% TODO
 
 % =====================================================================================
 \section{From the distribution function to the density}
 % =====================================================================================
 
 \subsection{The closed-form derivative}
-% TODO: the formula; the fact that the identity f = dF/dx is algebraic, not numerical.
+% TODO
 
 \subsection{Why finite differences on a grid were a problem}
-% TODO: dependence on resolution; the inconsistency introduced by the clamp.
+% TODO
 
 % =====================================================================================
 \section{Delivering an estimate without knowing the truth}
+\label{sec:delivery}
 % =====================================================================================
 
 \subsection{The evaluation domain}
-% TODO: why a domain is needed; why it cannot come from the true distribution; the rule
-% chosen and the criterion behind it; the principle (dispersion for the extent, window for
-% the resolution).
+% TODO
 
 \subsection{Diagnostics computable from the samples alone}
-% TODO: which indicators inform and which mislead; the case of the comparison against the
-% empirical CDF, which is the most natural trap.
+% TODO
 
 \subsection{The interface}
-% TODO: the single entry point and the command line; what it produces.
+% TODO
 
 % =====================================================================================
 \section{Results}
 % =====================================================================================
 
 \subsection{Against the previous version of the pipeline}
-% TODO: the end-to-end table; the comment on the worst case; how to read the mass column.
+% TODO
 
 \subsection{Against the Parzen estimator}
-% TODO: when the network beats its teacher and when it does not.
+% TODO
 
 \subsection{What the figures show}
-% TODO: one or two figures with commentary.
+% TODO
 
 % =====================================================================================
 \section{Scope and limits}
 % =====================================================================================
 
 \subsection{Distributions from other families}
-% TODO: the resilience study; the two suspicions refuted and the one confirmed.
+% TODO
 
 \subsection{The structural limit}
-% TODO: sharp edges; the check that raising capacity is not a free remedy; the decision to
-% state the limit.
+% TODO
 
 \subsection{What we do not claim}
-% TODO: explicit list.
+% TODO
 
 % =====================================================================================
 \section{Conclusions}
 % =====================================================================================
-% TODO: what was built, the three choices that characterise it, and what would remain to do.
+% TODO
 
 % =====================================================================================
 \appendix
 \section{Proofs}
+\label{app:proofs}
 % =====================================================================================
-% TODO: T1 saturation; T2 the mixture is a CDF; T3 expressiveness; T5 the clamp adds mass;
-% T6 equivariance.
+% TODO
 
 % =====================================================================================
 \section{Reproducibility}
+\label{app:repro}
 % =====================================================================================
-% TODO: table study -> script -> output file; how to re-run; environment.
+% TODO
 
 % =====================================================================================
 \section{Decision log}
 % =====================================================================================
-% TODO: compact table decision -> reason -> where it is measured.
+% TODO
 
 \end{document}
