@@ -1,0 +1,7 @@
+ISE della pdf, media su 3 semi, n = 500
+caso                                   J=12        J=24        J=48      Parzen
+BORDI due uniformi separate         0.05378     0.03279     0.02692     0.02352   <- min a J=48
+BORDI uniforme                      0.02257     0.02105     0.02022     0.01897   <- min a J=48
+BORDI esponenziale                  0.03217     0.02834     0.02809     0.02454   <- min a J=48
+GAUSS trimodale                     0.00436     0.00530     0.00606     0.00477   <- min a J=12
+GAUSS 6 mode scale miste            0.00284     0.00325     0.00372     0.00475   <- min a J=12

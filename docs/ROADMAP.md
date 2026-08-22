@@ -110,11 +110,11 @@ finisce in feature creep.
 
 | # | studio | priorità | nota |
 |---|---|---|---|
-| P-01 | Confronto rotta-CDF contro PNN diretta sulla pdf | media | rischio mele/pere: la pdf richiede una forma d'uscita diversa, quindi un'architettura diversa. Da riparlarne prima di impostarlo |
-| P-02 | Resilienza a componenti non gaussiane (uniforme, esponenziale, Student-t, miste) | media | se emergono *easy win* che generalizzano senza costare precisione sulle multimodali gaussiane, si prendono; altrimenti diventa solo uno studio finale di resilienza |
-| P-03 | Architetture MLP alternative | bassa | nessun vincolo d'esame sull'architettura; studio a lato prima del report |
+| P-01 | Confronto rotta-CDF contro PNN diretta sulla pdf | **annullata** | la rotta via CDF è il progetto per costruzione: il docente chiede la stima della CDF tramite PNN e da lì la densità. Non c'è alcuna alternativa da confrontare |
+| P-02 | Resilienza a componenti non gaussiane | **fatta** | `study_resilienza.md`. Nessun *easy win*: due sospetti su tre smentiti (le code pesanti sono più facili, il dominio si autocorregge), e l'unico limite vero — i bordi netti — non è riparabile alzando J senza pagare il 31–39 % sulle multimodali gaussiane. J = 12 confermato, limite dichiarato |
+| P-03 | Architetture MLP alternative | **annullata** | feature creep: la mistura funziona, ha le garanzie strutturali e vince il confronto end-to-end. Cercarne altre è curiosità |
 | P-04 | Pulizia finale: artefatti e segni di assistenza AI, stile del codice | bassa | pass immediatamente prima della consegna |
-| P-05 | Riallineamento della webapp al codice | bassa | la webapp diverge dal codice "dietro le quinte"; si allinea quando il progetto è solido |
+| P-05 | Riallineamento della webapp al codice | **da fare dopo il report** | confermato: il report è il deliverable principale e viene prima |
 
 ---
 
@@ -153,6 +153,8 @@ script versionato.
 | esponente dello schedule | `temp_analysis/schedule_exponent.py` | `schedule_exponent.txt` |
 | qualità del campionamento | `temp_analysis/sampling_quality.py` | `sampling_quality.txt`, `sampling_seeds.txt` |
 | dominio e diagnostica truth-free | `temp_analysis/pipeline_evidence.py`, `grid_rule.py` | `pipeline_evidence.txt`, `grid_rule.txt` |
+| confronto end-to-end nuovo/vecchio | `temp_analysis/endtoend_compare.py` | `endtoend_compare.txt` |
+| resilienza a famiglie non gaussiane | `temp_analysis/resilience_non_gaussian.py`, `edges_capacity.py` | `resilience_non_gaussian.txt`, `edges_capacity.txt` |
 | equivalenza Parzen replica/repo | — | `parzen_equivalence.txt` |
 | rivalidazione della proposta su PyTorch | `temp_analysis/revalidate_torch.py`, `mixture_cdf_net.py` | `revalidate_torch.txt` |
 | **verifica incrociata sul codice reale** | `temp_analysis/crosscheck_real_code.py` | `crosscheck_real_code.txt`, `clamp_on_violator.txt`, `seed_reproducibility.txt` |

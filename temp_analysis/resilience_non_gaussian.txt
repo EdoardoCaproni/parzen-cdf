@@ -1,0 +1,57 @@
+============================================================================================================
+P-02  RESILIENZA A DISTRIBUZIONI NON GAUSSIANE  (n = 500, 5 semi)
+      'dom/dati' = ampiezza del dominio diviso l'ampiezza dei dati: se esplode, il
+      sospetto S1 e' confermato. 'fuori' = massa vera lasciata fuori dal dominio.
+
+  caso                                   stim.          KS       ISE     massa  dom/dati     fuori
+  ------------------------------------------------------------------------------------------------
+  RIF mistura gaussiana                  Parzen     0.0368   0.00435   1.00000      2.64   0.0e+00
+                                         RETE       0.0385   0.00377   1.00000      2.64   0.0e+00
+  uniforme                               Parzen     0.0269   0.01753   1.00000      2.73   0.0e+00
+                                         RETE       0.0279   0.02201   1.00000      2.73   0.0e+00
+  esponenziale                           Parzen     0.0278   0.02431   1.00000      1.82   7.3e-05
+                                         RETE       0.0278   0.03025   0.99998      1.82   7.3e-05
+  due uniformi separate                  Parzen     0.0446   0.02368   1.00000      3.46   0.0e+00
+                                         RETE       0.0616   0.05212   1.00000      3.46   0.0e+00
+  Student-t df=3                         Parzen     0.0302   0.00226   1.00000      1.60   1.1e-03
+                                         RETE       0.0235   0.00158   0.99989      1.60   1.1e-03
+  Student-t df=2 (varianza infinita)     Parzen     0.0349   0.00279   1.00000      1.34   1.2e-03
+                                         RETE       0.0324   0.00216   0.99999      1.34   1.2e-03
+  Student-t df=1 (Cauchy, media infinita) Parzen     0.0345   0.00217   1.00000      1.27   3.3e-03
+                                         RETE       0.0320   0.00138   1.00000      1.27   3.3e-03
+  lognormale                             Parzen     0.0273   0.00485   1.00000      1.80   6.2e-04
+                                         RETE       0.0277   0.00570   0.99997      1.80   6.2e-04
+  gauss + uniforme                       Parzen     0.0421   0.00958   1.00000      3.01   0.0e+00
+                                         RETE       0.0432   0.01168   1.00000      3.01   0.0e+00
+  gauss + esponenziale                   Parzen     0.0424   0.01651   1.00000      2.31   7.5e-07
+                                         RETE       0.0463   0.02086   1.00000      2.31   7.5e-07
+  gauss + Student-t df=3                 Parzen     0.0446   0.00554   1.00000      2.18   3.2e-04
+                                         RETE       0.0424   0.00414   0.99998      2.18   3.2e-04
+  laplace + uniforme + gauss             Parzen     0.0381   0.00675   1.00000      2.58   1.0e-10
+                                         RETE       0.0389   0.00859   1.00000      2.58   1.0e-10
+
+============================================================================================================
+LETTURA DEI TRE SOSPETTI
+
+riferimento gaussiano: KS 0.0385, ISE 0.00377, dom/dati 2.64
+
+S1  il dominio esplode sulle code pesanti?
+    Student-t df=3                             dom/dati   1.60   massa sul dominio 0.9999   fuori 1.05e-03
+    Student-t df=2 (varianza infinita)         dom/dati   1.34   massa sul dominio 1.0000   fuori 1.16e-03
+    Student-t df=1 (Cauchy, media infinita)    dom/dati   1.27   massa sul dominio 1.0000   fuori 3.34e-03
+
+S2/S3  quanto costano code pesanti e bordi netti (ISE rispetto al riferimento)?
+    uniforme                                   ISE rete  0.02201  (  5.8x il rif.)   Parzen  0.01753   rete/Parzen  1.26
+    esponenziale                               ISE rete  0.03025  (  8.0x il rif.)   Parzen  0.02431   rete/Parzen  1.24
+    due uniformi separate                      ISE rete  0.05212  ( 13.8x il rif.)   Parzen  0.02368   rete/Parzen  2.20
+    Student-t df=3                             ISE rete  0.00158  (  0.4x il rif.)   Parzen  0.00226   rete/Parzen  0.70
+    lognormale                                 ISE rete  0.00570  (  1.5x il rif.)   Parzen  0.00485   rete/Parzen  1.17
+    gauss + uniforme                           ISE rete  0.01168  (  3.1x il rif.)   Parzen  0.00958   rete/Parzen  1.22
+    gauss + esponenziale                       ISE rete  0.02086  (  5.5x il rif.)   Parzen  0.01651   rete/Parzen  1.26
+
+la rete perde rispetto al suo maestro Parzen? (rapporto ISE rete/Parzen > 1 = si')
+    due uniformi separate                       2.20
+    laplace + uniforme + gauss                  1.27
+    gauss + esponenziale                        1.26
+    uniforme                                    1.26
+    esponenziale                                1.24
