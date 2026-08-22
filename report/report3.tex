@@ -456,26 +456,255 @@ relative to an oracle that is used only as a normaliser.}
 % =====================================================================================
 
 \subsection{The rule of thumb, and why it could not work}
-% TODO
+
+The second pass of the project settled on $h_1 = 1.5\,\shat$, with $\shat$ the sample
+standard deviation. The constant was obtained by sweeping $h_1$ over three orders of
+magnitude on a ladder of mixtures and picking a value that worked well across them. The
+result looked convincing, and on the distributions it was tested against it was.
+
+There are three reasons why a rule obtained that way cannot be trusted, and they are worth
+separating because only the third is about the number itself.
+
+The first is that the benchmark was also the prize. The constant was tuned on a handful of
+Gaussian mixtures and then validated on the same family, including ten mixtures drawn at
+random with component means spread uniformly over $[-5, 5]$ and standard deviations over
+$[0.2, 1.5]$. That procedure measures how well one has interpolated one's own test set, not
+how well the rule transfers to a distribution nobody chose.
+
+The second is that $\shat$ is the wrong quantity to anchor to. The standard deviation
+measures the \emph{global} spread of the sample, whereas the window has to resolve the
+\emph{narrowest feature} of the density. On a smooth unimodal target these coincide, which
+is why the rule looks reasonable at first. On a multimodal target with well separated modes
+they diverge sharply: $\shat$ is inflated by the distance between the modes, while the
+window that resolves each mode has to shrink. Since the assignment explicitly concerns a
+strongly multimodal distribution, this is not a corner case.
+
+The third is that the constant was validated on the Kolmogorov--Smirnov distance, which is
+the forgiving measure. On a mixture of five narrow well separated modes at $n = 1000$, the
+rule gives a KS distance twice the oracle's, which looks tolerable, and an integrated
+squared error seven and a half times the oracle's, which does not. Judging a window by the
+distance between distribution functions systematically underestimates how bad it is for the
+density, and the density is what we are asked to deliver.
 
 \subsection{An external test bench}
-% TODO
+
+To avoid repeating the first mistake, the study below uses a benchmark that we did not
+design. Marron and Wand (1992) introduced a set of fifteen normal mixtures specifically to
+stress bandwidth selectors, and it has been the standard reference in that literature ever
+since. The set is deliberately unkind: alongside a plain Gaussian and mild bimodals it
+contains the \emph{claw}, a broad normal with five narrow spikes sitting on top of it, and
+its double and asymmetric variants, in which a narrow structure hides inside a much wider
+one. These are exactly the shapes on which a globally anchored rule fails.
+
+We use the thirteen of them whose parameters we could verify against a primary source, the
+implementation shipped with the R package \texttt{nor1mix}; the two comb densities were left
+out because we could not confirm their parameters, and a mistyped density would invalidate
+everything measured on it. To these we add the three Gaussian mixtures used in the earlier
+passes of the project, so that the new results can be compared directly against the old
+benchmark. Sixteen densities in total, all normal mixtures, so pdf and CDF are available in
+closed form and every estimate can be scored against the truth to machine precision.
 
 \subsection{The selectors compared}
-% TODO
+
+Every selector below sees the sample and nothing else. The classical rules are derived for a
+unit-variance kernel, so each is divided by $\pi/\sqrt3$ before being used with the logistic
+one, as explained in Section~\ref{sec:scoring}; without that correction they would all
+oversmooth by the same factor and the comparison would be meaningless.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Selector} & \textbf{Form} \\
+\midrule
+constant start & $h = 1/\sqrt{n}$, the untuned starting point of the earlier study \\
+$\sigma$-rule & $h = 1.5\,\shat/\sqrt{n}$, the rule to beat \\
+Silverman & $0.9\,\min(\shat,\ \mathrm{IQR}/1.349)\, n^{-1/5}$ \\
+Scott & $1.06\,\shat\, n^{-1/5}$ \\
+two-stage plug-in & estimates $\int (f'')^2$ from the data, pilot from the normal reference \\
+LSCV & minimises an unbiased estimate of the integrated squared error \\
+MLCV & maximises the leave-one-out log-likelihood \\
+$c\,\shat/\sqrt{n}$ & the form of the $\sigma$-rule, with $c$ recalibrated \\
+$c\,s\,n^{-1/5}$ & correct exponent, robust scale, $c$ calibrated \\
+$c \cdot d_k$ & anchored to a \emph{local} scale, the distance to the $k$-th neighbour \\
+\bottomrule
+\end{tabular}
+\caption{The selectors compared. The last three have a free constant.}
+\label{tab:selectors}
+\end{table}
+
+The plug-in deserves a word since we derived it rather than copying a formula. The
+asymptotically optimal window depends on $\theta_4 = \int (f'')^2$, a functional of the
+unknown density; estimating $\theta_4$ with a kernel estimator requires a pilot bandwidth,
+which we take from the normal reference. The derivation is in
+Appendix~\ref{app:proofs}; as a check, feeding the normal reference into both stages
+reproduces Scott's rule exactly, and on Gaussian samples the implemented selector returns an
+implicit constant of $1.043$ to $1.051$ against the theoretical $1.06$.
+
+The three selectors with a free constant raise an obvious objection: calibrating them on the
+benchmark and then scoring them on the same benchmark would repeat precisely the error we
+are criticising. They are therefore calibrated \emph{leave-one-density-out}: the constant
+used on any given density is the one that performs best on all the others. It is the least
+that can be asked of a rule before claiming it generalises.
+
+Errors are reported as efficiencies relative to the oracle, as defined in
+Section~\ref{sec:scoring}, since absolute errors are not comparable across densities with
+such different shapes.
+
+One caveat belongs here rather than in the discussion of the results. LSCV minimises an
+unbiased estimate of exactly the criterion we score it on, so an advantage on the integrated
+squared error is expected and proves little by itself. The independent check is the KS
+column, where its objective has no structural advantage.
 
 \subsection{The central result: the constant is not a constant}
-% TODO
+
+Before comparing selectors it is worth asking whether the rule the earlier pass was looking
+for exists at all. For each family with a free constant we computed the optimal value
+separately on each density. If a law of the form $h_1 = c\,\shat$ existed, those values
+would agree.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Family} & \textbf{Smallest} & \textbf{Largest} & \textbf{Ratio} \\
+\midrule
+$c\,\shat/\sqrt{n}$, the form of the $\sigma$-rule & $0.36$ & $4.15$ & $11.6\times$ \\
+$c\,s\,n^{-1/5}$, correct exponent and robust scale & $0.11$ & $1.16$ & $10.6\times$ \\
+$c \cdot d_k$, anchored to a local scale & $0.46$ & $2.54$ & $5.6\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Optimal constant, density by density, at $n = 500$. At $n = 1000$ the first row
+spreads further, from $0.40$ to $5.31$, a ratio of $13.2$.}
+\label{tab:constants}
+\end{table}
+
+No single number can sit at $0.36$ and at $4.15$ simultaneously. The value $1.5$ is not a
+badly chosen constant; the form of the rule is what fails. It is also visible that anchoring
+to a local scale rather than to $\shat$ halves the spread, which confirms the diagnosis of
+Section~4.1 without rescuing the idea.
+
+The decisive check is what happens when the constant is recalibrated properly. Using
+leave-one-density-out calibration on the full sixteen-density benchmark, the recalibrated
+$\sigma$-rule reaches a mean efficiency of $2.46$, against $2.27$ for the original $1.5$ left
+untouched. Fitting the constant on a larger and more varied benchmark makes the rule
+\emph{worse}, because there is no constant to find: the calibration merely trades one set of
+densities for another.
 
 \subsection{Least-squares cross-validation, and its measured instability}
-% TODO
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Selector} & \textbf{Mean ISE} & \textbf{90th pct} & \textbf{Worst} &
+\textbf{Mean KS} & \textbf{Cases $>2\times$} \\
+\midrule
+constant start & $2.66$ & $5.07$ & $6.39$ & $1.28$ & 51\% \\
+$\sigma$-rule ($1.5\,\shat$) & $2.27$ & $3.95$ & $9.38$ & $1.25$ & 33\% \\
+Silverman & $3.77$ & $8.11$ & $21.01$ & $1.49$ & 46\% \\
+Scott & $5.27$ & $12.33$ & $22.94$ & $1.84$ & 54\% \\
+two-stage plug-in & $3.13$ & $6.95$ & $18.77$ & $1.37$ & 36\% \\
+\textbf{LSCV} & $\mathbf{1.26}$ & $\mathbf{1.61}$ & $\mathbf{1.59}$ & $\mathbf{1.11}$ &
+  \textbf{6\%} \\
+MLCV & $1.37$ & $1.98$ & $3.11$ & $1.18$ & 10\% \\
+$c\,\shat/\sqrt{n}$ recalibrated & $2.46$ & $5.33$ & $9.89$ & $1.23$ & 34\% \\
+$c\,s\,n^{-1/5}$ recalibrated & $2.62$ & $5.40$ & $11.05$ & $1.24$ & 37\% \\
+$c \cdot d_k$ recalibrated & $1.96$ & $3.48$ & $4.38$ & $1.21$ & 28\% \\
+\bottomrule
+\end{tabular}
+\caption{Efficiency relative to the oracle on the density, sixteen densities, twelve samples
+each, $n = 500$. Lower is better and $1$ is unattainable.}
+\label{tab:selector-results}
+\end{table}
+
+LSCV wins on every column, and the column that matters most is the worst case: it is the
+only selector without a catastrophic density anywhere in the benchmark. The professor's data
+will be one distribution, not an average over sixteen, so a selector that is excellent on
+average and disastrous on one shape is a poor bet.
+
+The normal-reference rules deserve a comment, because they perform worse here than their
+reputation suggests. Silverman, Scott and the plug-in are built on the assumption that the
+target resembles a normal density, and they oversmooth multimodal shapes systematically; on
+the mixture of five separated modes their efficiencies are $21$, $23$ and $19$. They are the
+best selectors on the two smooth unimodal densities of the benchmark, where LSCV sits at
+$1.5$ to $1.6$ and they sit at $1.2$ to $1.4$. If the target were known to be smooth they
+would be the right choice, which is not our situation.
+
+Repeating the study at $n = 1000$ leaves the ranking unchanged and sharpens two features.
+LSCV improves, to a mean of $1.20$ and $3\%$ of cases above twice the oracle, which is what a
+consistent selector should do. The normal-reference rules get worse: Silverman goes from
+$3.77$ to $5.42$ in the mean and from $21$ to $35$ in the worst case. That is not a paradox.
+Their error is a systematic smoothing bias that does not shrink with $n$, while the oracle
+they are compared against keeps improving, so the ratio grows. It is the signature of a
+model error rather than a variance one.
+
+The standard objection to cross-validation is that the window it selects varies a great deal
+between samples. The objection is correct, and we measured it: across the sixteen densities
+the coefficient of variation of $h$ over twelve samples ranges from $0.10$ to $0.35$ for
+LSCV, against $0.02$ to $0.16$ for the plug-in and $0.01$ to $0.17$ for Silverman. LSCV is
+indeed the noisiest of the three.
+
+That noise does not reach the error. LSCV's 90th percentile efficiency is $1.61$ and its
+worst case $1.59$, so there is no tail: the window wobbles by roughly a quarter between
+samples and the resulting estimate barely moves. The reason is that the error curve is flat
+near its minimum. Missing the optimal window by $25\%$ costs almost nothing, while missing it
+by a factor of three, which is what a fixed rule does on a density that does not resemble its
+calibration set, costs everything. The stability of a selector has to be judged on the error
+it produces, not on the steadiness of its output: Scott's rule is almost perfectly stable and
+almost always wrong.
 
 \subsection{What the square-root-of-n schedule costs}
 \label{sec:schedule-cost}
-% TODO
+
+The schedule $h_n = h_1/\sqrt n$ satisfies the consistency conditions, but it is not the rate
+that minimises the error. For density estimation the asymptotically optimal window shrinks
+like $n^{-1/5}$, so fixing the exponent at $1/2$ forces the discrepancy onto $h_1$. Two
+questions follow: how far off is the exponent in practice, and what does the mismatch cost.
+
+Measuring the oracle window across budgets from $100$ to $2000$ and regressing its logarithm
+on $\log n$ gives an exponent of $0.299$ on average, ranging from $0.232$ on the Gaussian to
+$0.388$ on the asymmetric claw. The empirical rate therefore sits between the theoretical
+$0.2$ and the schedule's $0.5$, closer to the former, and it drifts upward on densities with
+fine structure, which is consistent with those still being in a pre-asymptotic regime at
+these sample sizes.
+
+The cost is easier to state than the rate. Taking $h_1$ from the oracle at one budget and
+using it at another, through $h = h_1/\sqrt{n}$, gives efficiencies of $1.00$ to $1.11$ when
+the two budgets coincide, at most about $1.30$ when they differ by one step, and up to $5.39$
+when they differ by a factor of twenty. At a fixed sample size the schedule costs nothing,
+since any window whatsoever can be written as $h_1/\sqrt n$ for a suitable $h_1$. Moving
+between $500$ and $1000$ costs a few percent. What is not legitimate is treating a value of
+$h_1$ calibrated at one budget as a constant of the problem.
 
 \subsection{What is delivered}
-% TODO
+
+The window is chosen by least-squares cross-validation on a grid of candidates built from a
+robust scale estimate, and reported in the form the schedule requires, as
+$\hhat_1 = \hhat\sqrt n$.
+
+This is worth stating precisely, because it is the point on which the procedure is most
+likely to be questioned. We are not computing a window by one route and then dressing it up
+as $h_1$ afterwards. We are \emph{estimating} $h_1$, which was never a universal constant to
+begin with: $1.5\,\shat$ is itself a function of the sample, since $\shat$ is computed from
+the data. Both quantities have the same formal status, and what changes is the quality of the
+estimator, which is what Table~\ref{tab:selector-results} measures.
+
+The estimated $\hhat_1$ does depend on the sample, and it is not constant across budgets
+either, for the reason given in Section~\ref{sec:schedule-cost}. Both properties are shared
+with the rule it replaces. What is not shared is the ratio $\hhat_1/\shat$, which the earlier
+rule fixed at $1.5$ and which in fact ranges from $0.32$ to $3.77$ across the sixteen
+densities of the benchmark at $n = 500$. That spread is produced by the recommended selector
+running on data, not by an oracle: even a procedure that looks at the sample does not find a
+constant ratio, because there is no constant ratio to find.
+
+\takeaway{A rule of the form $h_1 = c\,\shat$ cannot be made to work: the optimal constant
+ranges over a factor of twelve across the benchmark, and recalibrating it carefully makes the
+rule worse rather than better. Least-squares cross-validation is used instead, with efficiency
+$1.26$ on average and $1.59$ in the worst case against $2.27$ and $9.38$ for the rule it
+replaces. It is the noisiest selector of those tested, and that noise does not reach the error
+because the error curve is flat near its minimum. The window is delivered as
+$\hhat_1 = \hhat \sqrt n$, keeping the schedule intact.}
 
 % =====================================================================================
 \section{The network: enforcing the shape of a distribution function}
