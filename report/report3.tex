@@ -712,28 +712,225 @@ $\hhat_1 = \hhat \sqrt n$, keeping the schedule intact.}
 % =====================================================================================
 
 \subsection{What the output must guarantee}
-% TODO
+
+The network is asked to produce a distribution function, which is a more constrained object
+than a generic curve. Four properties are needed, and they are not equally easy to obtain.
+
+The output must lie in $[0,1]$, must be non-decreasing, and must approach $0$ and $1$ at the
+two ends of the real line. It must also be differentiable, and here the requirement is
+sharper than it looks: the density is obtained by differentiating the network, so the
+smoothness of the output is the smoothness of the delivered density. A network with
+piecewise-linear activations such as ReLU would produce a piecewise-constant density, which
+is not merely inelegant but wrong for the purpose. This is why the activations used
+throughout are smooth ones.
+
+The first three properties are constraints on shape, and the interesting question is
+\emph{where} they are enforced: inside the model, so that they hold for any parameter values,
+or afterwards, by repairing whatever the model produced.
 
 \subsection{The first attempt and its limits}
-% TODO
+
+The architecture inherited from the earlier passes is a small multilayer perceptron with a
+sigmoid on the output,
+\begin{equation}
+F_\theta(x) \;=\; \sigma\!\Big( \textstyle\sum_{j} w_j\, \sigma(a_j x + b_j) + c \Big),
+\label{eq:mlp}
+\end{equation}
+with the final sigmoid supplying the range constraint. Monotonicity was not enforced at all
+during training; it was repaired afterwards, by evaluating the network on a grid, taking a
+running maximum so that the curve never decreases, and rescaling the result to span $[0,1]$
+exactly. The density was then obtained as a finite difference of that repaired curve.
+
+That arrangement works, in the sense that what comes out is a monotone curve from $0$ to $1$
+with unit mass. It is worth being precise about what it actually guarantees, because the
+three guarantees have different standing.
+
+The range is genuinely enforced by the final sigmoid. Monotonicity is enforced only after the
+fact, and only at the grid points that were evaluated. The limits at $0$ and $1$ are not
+enforced at all: they are imposed by the rescaling, which stretches whatever the network
+produced so that it starts at $0$ and ends at $1$ at the two ends of the grid. Since the grid
+in the earlier code was built from the true distribution, that last step used information
+which does not exist when the method is applied to real data.
+
+There is also a subtler consequence. The delivered density is a finite difference of a
+post-processed curve, not the derivative of the network, so its accuracy depends on the grid
+spacing, and the object handed to the user is a table rather than a function.
 
 \subsection{The saturation theorem}
-% TODO
+
+The reason the limits cannot be enforced inside architecture~\eqref{eq:mlp} is structural
+rather than a matter of training.
+
+\begin{theorem}[Saturation]
+\label{thm:saturation}
+Let $F_\theta(x) = \sigma(u(x))$ where $u$ is a finite sum of bounded activations with finite
+parameters. Then $u$ is bounded, and consequently
+\[
+\sigma(m) \;\le\; F_\theta(x) \;\le\; \sigma(M) \qquad \text{for all } x,
+\]
+with $m$ and $M$ finite. Both bounds are strictly inside $(0,1)$, so the values $0$ and $1$
+are never attained nor approached at any finite parameter setting.
+\end{theorem}
+
+The proof is in Appendix~\ref{app:proofs}; it is three lines and amounts to the observation
+that a finite sum of bounded terms is bounded. The consequence is that reaching the tails
+requires the weights to diverge, so gradient descent can only creep towards them.
+
+The effect is measurable. Training the inherited architecture on the reference trimodal
+mixture at $n = 1000$ and evaluating it fifty standard deviations away from the data, the
+total mass it can span is $0.9955$ in the unconstrained version and $0.9903$ in the
+positive-weight one. Around half a percent of the probability is unreachable, and the
+rescaling step does not recover it: it redistributes that deficit back into the interior of
+the domain, converting a tail error into an interior one.
 
 \subsection{The chosen architecture}
-% TODO
+
+The alternative is to build the constraints into the functional form. Write
+\begin{equation}
+F_\theta(x) \;=\; \sum_{j=1}^{J} \pi_j\, \sigma\!\left( a_j z + b_j \right),
+\qquad z = \frac{x - \mu}{s},
+\qquad \pi = \mathrm{softmax}(u), \qquad a_j = \mathrm{softplus}(\alpha_j),
+\label{eq:mixture-cdf}
+\end{equation}
+with $\mu$ and $s$ the median and standard deviation of the sample. The free parameters are
+$\alpha$, $b$ and $u$, each of length $J$, and the two reparameterisations do all the work:
+the softmax forces the weights $\pi_j$ to be positive and to sum to one, and the softplus
+forces the slopes $a_j$ to be positive.
+
+The form is not new. It is the transformation used in deep sigmoidal flows (Huang et al.,
+2018) without the logit that those apply to the output, which is what keeps our version
+inside $[0,1]$ instead of mapping back to the whole line.
+
+What makes it a natural choice here is its relationship with the estimator of
+Chapter~3. Equation~\eqref{eq:parzen-cdf} with the logistic kernel is an average of $n$
+sigmoids, one centred on each observation, all sharing the same width $h$. Equation
+\eqref{eq:mixture-cdf} is a weighted sum of $J$ sigmoids, with the weights, the centres
+$-b_j/a_j$ and the widths $1/a_j$ all learned. The network is therefore the Parzen estimator
+with $n$ replaced by $J$, and with the weights and widths freed rather than fixed. With $J
+\ll n$ it is a compression of the estimator it is trained on, which is a more honest
+description of what the neural stage contributes than any claim of superior accuracy.
 
 \subsection{The guarantees, proved}
-% TODO
+
+\begin{theorem}[Validity by construction]
+\label{thm:validity}
+Let $F_\theta$ be given by~\eqref{eq:mixture-cdf} with $\pi_j > 0$, $\sum_j \pi_j = 1$ and
+$a_j > 0$. Then $F_\theta$ is the distribution function of an absolutely continuous
+distribution on $\mathbb{R}$: it is infinitely differentiable, strictly increasing,
+$F_\theta(-\infty) = 0$ and $F_\theta(+\infty) = 1$ exactly, and its derivative is strictly
+positive with integral one.
+\end{theorem}
+
+The proof is in Appendix~\ref{app:proofs}. The property that matters in practice is not the
+theorem itself but its scope: because softmax and softplus map the whole of $\mathbb{R}^{3J}$
+into the admissible region, the hypotheses hold at \emph{every} parameter value. There is no
+feasible set to stay inside, no constraint for the optimiser to violate, and no repair step
+that could be forgotten.
+
+The guarantees survive finite-precision arithmetic, which is not automatic. Drawing a
+thousand random parameter vectors with large perturbations and checking monotonicity on five
+thousand points, with a tolerance of $10^{-6}$ appropriate to single precision, the
+unconstrained architecture~\eqref{eq:mlp} is non-monotone $900$ times out of $1000$; both the
+positive-weight variant and the mixture are non-monotone in none. Evaluated at $\pm 10^{6}$
+the mixture returns exactly $0$ and exactly $1$, and its density integrates to $1.000000$
+over a wide domain without any normalisation.
+
+The comparison with the positive-weight variant is worth making explicitly, since on
+monotonicity alone the two are equivalent. What separates them is everything else: the
+positive-weight network still cannot reach $0$ and $1$ by Theorem~\ref{thm:saturation}, still
+requires a grid to produce a density, and is not equivariant under rescaling of the data.
 
 \subsection{No loss of expressiveness}
-% TODO
+
+Constraining a model usually costs something, so it is fair to ask what the restriction
+in~\eqref{eq:mixture-cdf} rules out.
+
+The first answer is exact. Setting $J = n$, $\pi_j = 1/n$, $a_j = 1/h$ and $b_j = -x_j/h$
+recovers the Parzen estimator~\eqref{eq:parzen-cdf} identically. The family therefore
+contains the very estimator the network is trained on, so nothing is lost by construction;
+whatever is given up by taking $J \ll n$ is the compression we are choosing, not a limitation
+of the form.
+
+The second is asymptotic. For any continuous distribution function $G$ and any $J$, placing
+the centres at the quantiles $G^{-1}((j - \tfrac12)/J)$ with equal weights and letting the
+widths shrink gives $\sup_x |F_\theta(x) - G(x)| \le 1/J$, so the family is dense in the
+supremum norm as $J$ grows. The argument is in Appendix~\ref{app:proofs}. Universality for
+the same family, in the flow formulation, is also established in the literature cited above.
 
 \subsection{Standardisation and equivariance}
-% TODO
+
+An estimator of a distribution should not care where the data sits on the axis. If every
+observation is multiplied by $\alpha$ and shifted by $\beta$, the estimate should transform
+along with it and otherwise be identical.
+
+The Parzen estimator has this property already, provided the window is chosen equivariantly:
+$\shat$ scales with $\alpha$, so $h$ does too, and the kernel arguments $(x - x_i)/h$ are
+unchanged. The network does not get it for free. In the inherited architecture the weights
+are initialised without reference to the data and the biases start at zero, so every sigmoid
+is centred at the origin regardless of where the sample lies, and the optimiser works in
+absolute units.
+
+The consequence is severe and easy to miss, because the reference mixtures used throughout
+the project all sit near the origin. Translating the same trimodal sample by $100$ and
+retraining, the inherited pipeline returns a Kolmogorov--Smirnov distance of $0.50$ on two
+seeds out of three and $0.70$ on the third, against $0.03$ untranslated. A KS distance of
+$0.5$ means the network has collapsed to the constant $0.5$: it has learned nothing at all.
+
+The fix is the standardisation already written into~\eqref{eq:mixture-cdf}: the model works
+on $z = (x - \mu)/s$ and stores $\mu$ and $s$, so that a shift or a rescaling of the data
+leaves the internal problem untouched.
+
+\begin{theorem}[Equivariance]
+\label{thm:equivariance}
+If $\mu$ and $s$ are equivariant statistics, then the estimate computed on $\alpha x + \beta$
+evaluated at $\alpha t + \beta$ equals the estimate computed on $x$ evaluated at $t$, for
+every $\alpha > 0$ and $\beta$.
+\end{theorem}
+
+In exact arithmetic the two estimates coincide; in floating point they agree to about
+$10^{-3}$ after six thousand optimiser steps, the residual being the amplification of a
+rounding difference of order $10^{-15}$ in the computation of $s$. Measured across shifts up
+to $1000$ and rescalings up to $50$, the KS distance stays between $0.0259$ and $0.0265$
+where the unstandardised version collapses to $0.50$.
 
 \subsection{How many components}
-% TODO
+
+The number of components $J$ is the only capacity knob, and it behaves the way capacity
+usually does, with the twist that both directions of error are visible on this benchmark.
+Below the number of modes of the target the model simply cannot represent it; above it, the
+extra freedom is spent fitting the noise in the labels.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Target} & $J = 4$ & $J = 6$ & $J = 8$ & $J = 12$ & $J = 24$ \\
+\midrule
+trimodal & $\mathbf{0.0026}$ & $0.0029$ & $0.0034$ & $0.0044$ & $0.0050$ \\
+five narrow separated modes & $0.0536$ & $0.0047$ & $0.0047$ & $\mathbf{0.0047}$ & $0.0047$ \\
+six modes at mixed scales & $0.0343$ & $0.0183$ & $0.0049$ & $\mathbf{0.0025}$ & $0.0026$ \\
+\midrule
+\textbf{worst case} & $0.0536$ & $0.0183$ & $0.0049$ & $\mathbf{0.0047}$ & $0.0050$ \\
+\bottomrule
+\end{tabular}
+\caption{Integrated squared error on the density at $n = 500$, averaged over three samples.}
+\label{tab:capacity}
+\end{table}
+
+The choice is made on the worst row rather than on the mean, for the same reason as in
+Chapter~\ref{sec:window}: the target is a single unknown distribution. The risk is also
+strongly asymmetric. Choosing $J$ too small is catastrophic, since $J = 4$ costs a factor of
+eleven on the five-mode target, while choosing it too large costs a few percent. We use
+$J = 12$.
+
+\takeaway{A distribution function has to be non-decreasing, bounded, and to approach $0$ and
+$1$; the inherited architecture obtained the first two after the fact on a grid and could not
+obtain the third at all, because a finite sum of bounded terms cannot reach the ends of
+$(0,1)$. Writing the network as a convex mixture of logistic distribution functions makes all
+of them hold at every parameter value, gives the density in closed form, and coincides with
+the Parzen estimator when the number of components equals the sample size. Standardising the
+input makes the estimate equivariant, which the inherited version was not: translating the
+data by $100$ was enough to make it collapse. Twelve components are used.}
 
 % =====================================================================================
 \section{Training}
