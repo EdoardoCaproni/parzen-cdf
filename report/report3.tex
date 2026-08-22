@@ -1511,17 +1511,234 @@ we have not tested it.
 \section{Proofs}
 \label{app:proofs}
 % =====================================================================================
-% TODO
+
+Throughout, $\sigma(t) = 1/(1 + e^{-t})$ denotes the logistic function, whose derivative
+$\sigma'(t) = \sigma(t)(1 - \sigma(t))$ is strictly positive. All parameters are finite.
+
+\subsection*{Theorem~\ref{thm:saturation} (saturation)}
+
+Let $F_\theta(x) = \sigma(u(x))$ with $u(x) = \sum_j w_j\, \sigma(a_j x + b_j) + c$.
+
+Since $\sigma$ takes values in $(0,1)$, each term $w_j \sigma(\cdot)$ lies between
+$\min(0, w_j)$ and $\max(0, w_j)$. Summing over the finitely many $j$ and adding $c$,
+\[
+m \;=\; c + \sum_j \min(0, w_j) \;\le\; u(x) \;\le\; c + \sum_j \max(0, w_j) \;=\; M ,
+\]
+with $m$ and $M$ finite. As $\sigma$ is increasing, $\sigma(m) \le F_\theta(x) \le \sigma(M)$,
+and both bounds lie strictly inside $(0,1)$ because $m$ and $M$ are finite. Reaching $0$ or
+$1$ therefore requires $\|w\| \to \infty$. \hfill$\square$
+
+The limits themselves exist and are computable: as $x \to +\infty$ each $\sigma(a_j x + b_j)$
+tends to $1$ if $a_j > 0$ and to $0$ if $a_j < 0$, so $F_\theta(+\infty) = \sigma(c + \sum_{a_j
+> 0} w_j)$, and symmetrically at $-\infty$.
+
+The hypothesis that matters is the boundedness of the hidden activation. With an unbounded one
+such as softplus the right tail becomes reachable, but the left does not, since softplus tends
+to $0$ as its argument tends to $-\infty$ and the pre-activation still converges to $c$. The
+architecture discussed in Section~5.2 uses the logistic activation, so the bounded case is the
+relevant one.
+
+\subsection*{Theorem~\ref{thm:validity} (validity by construction)}
+
+Let $F_\theta(x) = \sum_j \pi_j\, \sigma(a_j x + b_j)$ with $\pi_j > 0$, $\sum_j \pi_j = 1$
+and $a_j > 0$.
+
+\emph{Smoothness.} A finite linear combination of compositions of $C^\infty$ functions.
+
+\emph{Monotonicity.} $F_\theta'(x) = \sum_j \pi_j a_j \sigma'(a_j x + b_j)$ is a sum of
+strictly positive terms, so $F_\theta$ is strictly increasing.
+
+\emph{Limits.} As $x \to -\infty$ each $\sigma(a_j x + b_j) \to 0$ because $a_j > 0$, so
+$F_\theta \to 0$; as $x \to +\infty$ each tends to $1$, so $F_\theta \to \sum_j \pi_j = 1$.
+
+\emph{Mass.} $\int_{\mathbb{R}} F_\theta' = F_\theta(+\infty) - F_\theta(-\infty) = 1$ by the
+fundamental theorem of calculus. \hfill$\square$
+
+The reparameterisation is what makes this useful rather than merely true: $\pi =
+\mathrm{softmax}(u)$ gives $\pi_j > 0$ with $\sum_j \pi_j = 1$ for every $u \in \mathbb{R}^J$,
+and $a = \mathrm{softplus}(\alpha)$ gives $a_j > 0$ for every $\alpha \in \mathbb{R}^J$. The
+hypotheses therefore hold on the whole parameter space, so no parameter value is inadmissible
+and no optimiser step can leave the set of valid distribution functions.
+
+One consequence should be stated because it is the limitation of Chapter~\ref{sec:limits}:
+$F_\theta' > 0$ everywhere means the density is strictly positive on all of $\mathbb{R}$, so
+no distribution with compact support can be represented exactly.
+
+\subsection*{Expressiveness}
+
+\emph{The family contains the estimator.} Taking $J = n$, $\pi_j = 1/n$, $a_j = 1/h$ and
+$b_j = -x_j/h$ in~\eqref{eq:mixture-cdf} gives exactly the logistic Parzen
+estimator~\eqref{eq:parzen-cdf}. Nothing is lost by the restriction at full capacity.
+
+\emph{Density in the supremum norm.} Let $G$ be a continuous distribution function and $J \ge
+1$. Put $\mu_j = G^{-1}((j - \tfrac12)/J)$, $\pi_j = 1/J$, and let all widths equal $s$. Write
+$H$ for the step function with jumps $1/J$ at the $\mu_j$. For $x \in [\mu_j, \mu_{j+1})$ we
+have $H(x) = j/J$ and $G(x) \in [(j - \tfrac12)/J, (j + \tfrac12)/J]$, so $\sup_x |H - G| \le
+1/(2J)$. As $s \to 0$ the mixture converges to $H$, the largest discrepancy being attained at
+the $\mu_j$ where the mixture takes the value $(j-1)/J + 1/(2J)$ against $j/J$, hence
+$1/(2J)$. By the triangle inequality
+\[
+\limsup_{s \to 0}\ \sup_x |F_\theta(x) - G(x)| \;\le\; 1/J ,
+\]
+so choosing $J \ge 1/\varepsilon$ suffices. \hfill$\square$
+
+\subsection*{Theorem~\ref{thm:equivariance} (equivariance)}
+
+Let $S$ map a sample to an estimated distribution function. We want $S(\alpha x +
+\beta)(\alpha t + \beta) = S(x)(t)$ for $\alpha > 0$.
+
+For the Parzen estimator with $h$ proportional to an equivariant scale, $\shat(\alpha x +
+\beta) = \alpha\, \shat(x)$, so $h \mapsto \alpha h$ and the kernel arguments satisfy
+\[
+\frac{(\alpha t + \beta) - (\alpha x_i + \beta)}{\alpha h} = \frac{t - x_i}{h},
+\]
+leaving the estimate and the leave-one-out labels unchanged.
+
+For the network, if $\mu$ and $s$ are equivariant, meaning $\mu(\alpha x + \beta) = \alpha
+\mu(x) + \beta$ and $s(\alpha x + \beta) = \alpha s(x)$, then the standardised sample
+$z = (x - \mu)/s$ is invariant. Every quantity computed from $z$ is therefore identical:
+the initialisation, each gradient, each optimiser step and the fitted parameters. Evaluating
+the shifted model at $\alpha t + \beta$ standardises to $(t - \mu(x))/s(x)$, which is what
+the unshifted model receives at $t$. \hfill$\square$
+
+Without standardisation the property fails for two independent reasons: the initialisation
+does not depend on the data at all, so the model starts from the same function wherever the
+sample lies, and the optimiser step is fixed in absolute parameter units while the parameters
+required scale with $\alpha$.
+
+\subsection*{The clamp adds mass}
+
+Let $f$ be integrable on $[a,b]$ with $F(t) = F(a) + \int_a^t f$. Writing $f = f^+ - f^-$ with
+$f^+ = \max(f, 0)$ and $f^- = \max(-f, 0) \ge 0$,
+\[
+\int_a^b f^+ \;=\; \int_a^b f \;+\; \int_a^b f^- \;=\; \big(F(b) - F(a)\big) + \int_a^b f^-
+\;\ge\; F(b) - F(a),
+\]
+with equality if and only if $f \ge 0$ almost everywhere. Replacing a density by its positive
+part therefore breaks the relation between the two delivered curves unless the density was
+non-negative to begin with. \hfill$\square$
+
+\subsection*{Derivation of the two-stage plug-in}
+
+The asymptotically optimal window for density estimation is
+\[
+h_{\mathrm{AMISE}} \;=\; \left[ \frac{R(K)}{n\, \mu_2(K)^2\, \theta_4} \right]^{1/5},
+\qquad \theta_4 = \int (f'')^2 ,
+\]
+with $R(K) = 1/(2\sqrt\pi)$ and $\mu_2 = 1$ for the Gaussian kernel. The unknown is
+$\theta_4$, estimated by
+\[
+\hat\theta_4(g) \;=\; \frac{1}{n^2 g^5} \sum_{i,j} \varphi^{(4)}\!\left(\frac{x_i - x_j}{g}\right),
+\qquad \varphi^{(4)}(u) = (u^4 - 6u^2 + 3)\,\varphi(u),
+\]
+which needs its own pilot width $g$. The width minimising the asymptotic mean squared error of
+$\hat\theta_4$ is $g = [-2 K^{(4)}(0) / (\mu_2\, \theta_6\, n)]^{1/7}$ with $K^{(4)}(0) =
+3/\sqrt{2\pi}$; taking $\theta_6$ from the normal reference, $\theta_6 = -15/(16\sqrt\pi
+s^7)$, gives
+\[
+g \;=\; \left(\frac{96}{15\sqrt 2}\right)^{1/7} s\, n^{-1/7} \;\approx\; 1.2407\, s\, n^{-1/7}.
+\]
+As a check on the algebra, feeding the normal reference into the outer stage as well, with
+$\theta_4 = 3/(8\sqrt\pi s^5)$, gives $h = [4 s^5/(3n)]^{1/5} = 1.059\, s\, n^{-1/5}$, which
+is Scott's rule. Numerically, on Gaussian samples the implemented selector returns an implicit
+constant of $1.043$ at $n = 200$ and $1.051$ at $n = 2000$, against the theoretical $1.06$.
 
 % =====================================================================================
 \section{Reproducibility}
 \label{app:repro}
 % =====================================================================================
-% TODO
+
+Every number quoted in this report comes from a script in the repository, and each script
+writes its output to a text file alongside it. The environment is Python 3.11 with NumPy,
+SciPy and PyTorch; the exact versions are pinned in \texttt{requirements.txt} and the test
+suite runs with \texttt{pytest}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.58\linewidth}@{}}
+\toprule
+\textbf{Where} & \textbf{Script} \\
+\midrule
+Ch.~2, generator checks and seeding & \texttt{sampling\_quality.py} \\
+Ch.~4, window selectors & \texttt{bandwidth\_study.py} with \texttt{bandwidth\_run.py} \\
+Ch.~4, schedule exponent & \texttt{schedule\_exponent.py} \\
+Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\
+Ch.~5--6, inherited pipeline & \texttt{crosscheck\_real\_code.py} \\
+Ch.~8, domain and diagnostics & \texttt{pipeline\_evidence.py}, \texttt{grid\_rule.py} \\
+Ch.~9, end-to-end comparison & \texttt{endtoend\_compare.py} \\
+Ch.~9, figures & \texttt{scripts/report\_figures.py} \\
+Ch.~10, other families & \texttt{resilience\_non\_gaussian.py},
+  \texttt{edges\_capacity.py} \\
+\bottomrule
+\end{tabular}
+\caption{Scripts live in \texttt{temp\_analysis/} unless stated otherwise; each writes its
+results to a text file of the same name.}
+\label{tab:scripts}
+\end{table}
+
+Two remarks on how the measurements are organised. Several of the studies in Chapters~4 and~8
+were carried out with an independent NumPy implementation of the estimator rather than with
+the library, so that a defect in the code being assessed could not propagate into the
+assessment; the two implementations were checked to agree to machine precision on the
+estimator itself, and to within a few percent on the cross-validated window, where they use
+different candidate grids. Conversely, everything concerning the behaviour of the network was
+measured with the library itself, since that is what is being described.
+
+The pipeline can be run on any sample with
+\begin{quote}
+\texttt{python -m parzen\_cdf.run --samples data.csv --out results/}
+\end{quote}
+and the test suite with \texttt{pytest}. The tests include the properties asserted in
+Chapter~\ref{sec:network}: monotonicity and the exact limits under randomly perturbed
+parameters, agreement between the closed-form density and a numerical derivative of the
+distribution function, equivariance under translation and rescaling of the data, and the
+absence of any dependence of the estimation path on the module that generates test
+distributions.
 
 % =====================================================================================
 \section{Decision log}
 % =====================================================================================
-% TODO
+
+A compact summary of the choices that define the procedure, with the evidence behind each.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.30\linewidth}%
+                  >{\raggedright\arraybackslash}p{0.42\linewidth}l@{}}
+\toprule
+\textbf{Choice} & \textbf{Reason} & \textbf{Where} \\
+\midrule
+Window by least-squares cross-validation &
+  Efficiency $1.26$ mean, $1.59$ worst, against $2.27$ and $9.38$ for $h_1 = 1.5\shat$ &
+  \S\ref{sec:window} \\
+Schedule $h_n = h_1/\sqrt n$ retained &
+  Satisfies the consistency conditions; at a fixed budget it costs nothing &
+  \S\ref{sec:schedule-cost} \\
+Mixture of logistic CDFs &
+  Valid distribution function at every parameter value; density in closed form &
+  \S\ref{sec:network} \\
+Twelve components &
+  Best worst case over the benchmark; the risk is asymmetric &
+  Table~\ref{tab:capacity} \\
+Standardised input &
+  Without it a shift of $100$ collapses the estimate to a constant &
+  Thm.~\ref{thm:equivariance} \\
+No rectification, penalty or clamp &
+  Nothing left to enforce; the clamp broke the density--CDF identity &
+  \S6.3 \\
+Domain $[\min x - 3\shat,\ \max x + 3\shat]$ &
+  Worst-case mass outside $1.1 \times 10^{-4}$ over sixteen densities &
+  Table~\ref{tab:domain} \\
+Diagnostics: LSCV score, LOO likelihood, mass &
+  Rank correlation $0.94$ and $0.86$ with the true error &
+  Table~\ref{tab:diagnostics} \\
+No comparison against the empirical CDF &
+  Anticorrelated with the true error; rewards the narrowest window &
+  Table~\ref{tab:diagnostics} \\
+\bottomrule
+\end{tabular}
+\caption{The choices that define the procedure.}
+\label{tab:decisions}
+\end{table}
 
 \end{document}
