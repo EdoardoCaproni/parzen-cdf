@@ -82,7 +82,7 @@ distribution function, and an estimate $\fhat$ of the density, obtained by diffe
 the first.
 
 The order matters, and it is not incidental. One could estimate the density directly and
-integrate it; going the other way round --- estimating $F$ first and differentiating --- is
+integrate it. Going the other way round, estimating $F$ first and differentiating, is
 what the assignment prescribes, and it also has a technical justification worth stating
 early. A distribution function is a smoother object than a density: it is an integral, and
 integration averages away exactly the kind of local fluctuation that makes density
@@ -102,7 +102,7 @@ non-negativity and unit mass at the same time is considerably harder.
 The pipeline takes a vector of numbers and returns:
 
 \begin{itemize}
-  \item two functions, $\Fhat$ and $\fhat$, evaluable at any real point --- not tables
+  \item two functions, $\Fhat$ and $\fhat$, evaluable at any real point, not tables
         sampled on a grid;
   \item a window width $\hhat$, reported also as $\hhat_1 = \hhat\sqrt{n}$ so that it fits
         the schedule $h_n = h_1/\sqrt{n}$;
@@ -111,18 +111,8 @@ The pipeline takes a vector of numbers and returns:
         write it, on data we have never seen.
 \end{itemize}
 
-\subsection{How to read this document}
-
-Every quantitative statement is accompanied by how it was obtained: on how many
-distributions, over how many repetitions, and with which script. Proofs are collected in
-Appendix~\ref{app:proofs} so that the main text stays readable; statements and consequences
-appear where they are used. Appendix~\ref{app:repro} maps each experiment to the file that
-reproduces it.
-
-Several sections end with an explicit list of what we are \emph{not} claiming. These are
-deliberate. During this work a number of plausible claims turned out to be false when
-measured, including some of our own, and the habit of writing down the boundary of a result
-proved more useful than the result itself.
+Proofs are collected in Appendix~\ref{app:proofs}, and Appendix~\ref{app:repro} lists the
+script that reproduces each measurement reported here.
 
 \subsection{Where this work comes from}
 
@@ -137,29 +127,23 @@ without correcting for this oversmooths by exactly that factor. It is a small ov
 a visible cost: on the reference trimodal mixture at $n = 500$, averaged over ten samples,
 the uncorrected rule gives a Kolmogorov--Smirnov distance of $0.0628$ against $0.0449$ for
 the corrected one, and an integrated squared error on the density of $0.0334$ against
-$0.0154$ --- more than a factor of two.
+$0.0154$, more than a factor of two.
 
 The \textbf{second pass} fixed the scale, adopted the schedule $h_n = h_1/\sqrt{n}$, and
 looked for a rule of thumb for the remaining constant, settling on $h_1 = 1.5\,\shat$. It
 also introduced the neural stage, trained on Parzen labels, with monotonicity repaired
 downstream by taking a running maximum of the estimated curve and rescaling it to $[0,1]$.
 
-The \textbf{third pass} is this one. It began as a review and turned into a redesign,
-because three things did not survive checking. The rule for $h_1$ was calibrated and
-validated on the same small family of distributions, which measures how well one has
-interpolated one's own benchmark rather than how well the rule generalises. The network's
-guarantees were obtained after the fact, on a grid whose extent was taken from the true
-distribution --- an object that does not exist when the method is applied to real data. And
-the pipeline had no way of reading a sample from a file at all.
+The \textbf{third pass} is this one. It began as a review and turned into a redesign. The
+rule for $h_1$ had been calibrated and validated on the same small family of distributions,
+which measures how well one has interpolated one's own benchmark rather than how well the
+rule generalises. The network's guarantees were obtained after the fact, on a grid whose
+extent was taken from the true distribution, an object that does not exist once the method
+is applied to real data. And the pipeline had no way of reading a sample from a file at
+all, which for a method meant to be run on someone else's data is a curious omission.
 
-Two consequences for the reader. First, this report re-derives everything from the
-beginning and does not rely on the earlier write-ups; where an earlier conclusion is
-superseded, we say so and give the measurement that supersedes it. Second, several of the
-numbers reported in the earlier passes are not reproducible as stated, for a reason
-explained in Section~\ref{sec:reproducibility}: a defect in how random seeds were applied
-meant that runs labelled with different seeds were not actually controlled by them. That
-defect has been fixed, and every figure in this report comes from runs that can be
-reproduced.
+Everything below is re-derived from scratch, and where a conclusion of an earlier pass is
+superseded the measurement that supersedes it is given alongside.
 
 % =====================================================================================
 \section{Development data: generating honest samples}
@@ -173,7 +157,7 @@ therefore be tempting to treat the way we produce test data as an implementation
 
 It is not, for a simple reason: every number in this report was measured on samples we
 generated ourselves. Calibration of the window, the choice of the number of network
-components, the comparison between architectures --- all of it rests on synthetic data drawn
+components, the comparison between architectures: all of it rests on synthetic data drawn
 from distributions whose truth we know, because otherwise there would be nothing to compare
 against. A generator with a subtle bias would contaminate every one of those conclusions,
 and it would do so silently: nothing downstream would look wrong. The generator is not in
@@ -207,7 +191,7 @@ is one line:
 \Pr(X \le x) \;=\; \sum_i \Pr(I = i)\, \Pr(X \le x \mid I = i) \;=\; \sum_i w_i F_i(x),
 \]
 which is the mixture distribution function by definition. There is no tolerance, no
-convergence, no numerical error --- and the cost is $O(n)$, one categorical draw and one
+convergence, no numerical error. The cost is $O(n)$: one categorical draw and one
 component draw per observation, both vectorised.
 
 The alternative would be \emph{inverse transform sampling}: if $U$ is uniform on $(0,1)$ then
@@ -235,7 +219,7 @@ them are exact; all of them are relatively expensive per sample.
 
 The \emph{Ziggurat} method (Marsaglia and Tsang, 2000) is a rejection sampler designed so
 that the expensive branch is almost never taken. Consider the right half of the bell curve
-and cover it with a stack of horizontal strips --- around 128 or 256 of them --- chosen to
+and cover it with a stack of horizontal strips, around 128 or 256 of them, chosen to
 all have \emph{exactly the same area}, plus a tail region at the bottom with that same area.
 The picture resembles a stepped Mesopotamian ziggurat, which is where the name comes from.
 Because the strips have equal area, choosing one uniformly at random is a matter of masking a
@@ -256,15 +240,15 @@ The point that matters for us is that this is a rejection sampler, and rejection
 because the procedure is equivalent to sampling uniformly under the curve and keeping the
 abscissa. The speed is not bought with accuracy, and there is no approximation to declare.
 
-Two clarifications, since the two levels are easy to confuse. First, the Ziggurat is not
+The two levels are easy to confuse, so it is worth separating them. The Ziggurat is not
 something we implemented: it is the algorithm NumPy uses internally when it draws a
-standard normal variate. We verified this rather than assuming it --- the
+standard normal variate. We verified this rather than assuming it. The
 documentation strings do not mention the algorithm, but the compiled library that
 \texttt{Generator} links against exports symbols named after it, among them the tail
 cut-off constant of the normal Ziggurat and its reciprocal, while the legacy
 \texttt{RandomState} module exports no such symbol, consistent with its use of the polar
-method. Second, ancestral sampling and the Ziggurat are
-not alternatives: they sit at different levels and compose. Ancestral sampling decides
+method. And ancestral sampling and the Ziggurat are not
+alternatives: they sit at different levels and compose. Ancestral sampling decides
 \emph{which} normal to draw from; the Ziggurat is how each individual normal variate is
 actually produced.
 
@@ -330,24 +314,6 @@ The earlier borderline values were fluctuations. As an independent confirmation,
 of the 2000 sample means is $0.69930$ against a true mixture mean of $0.70000$, a discrepancy
 of about a third of a standard error.
 
-\subsection{A note on circularity}
-
-There is a tempting argument that we deliberately do not make. It runs: the generator never
-evaluates the distribution function --- ancestral sampling and the Ziggurat both avoid it ---
-therefore estimating $F$ from the samples is not circular.
-
-The argument does not hold, and it is worth explaining why, because it sounds convincing.
-Samples drawn independently from $F$ carry no information about $F$ beyond the statistical
-information any such sample would carry, regardless of the algorithm that produced them. Had
-we sampled by inverting the distribution function, the resulting $x_i$ would be
-indistinguishable from ours, and no estimator could exploit the difference. There is no
-leakage to eliminate, so there is nothing for this argument to defend against.
-
-What does need to be established is a different and simpler statement: that the estimator
-sees the sample and nothing else. That is a property of the code, verifiable by reading it,
-and Section~\ref{sec:delivery} explains how the present design makes it structural rather
-than a matter of discipline.
-
 \takeaway{The generator is not part of the estimation pipeline, but every measurement in
 this report depends on it, so it was checked rather than assumed. Ancestral sampling is
 exact by construction and costs $O(n)$; the Ziggurat, which produces the individual normal
@@ -361,7 +327,7 @@ different levels and compose.}
 \subsection{Definition and intuition}
 
 The Parzen window estimator replaces each observation by a small bump and averages them.
-Given a kernel $K$ --- a density, usually symmetric and centred at zero --- and a window
+Given a kernel $K$, a density usually symmetric and centred at zero, and a window
 width $h > 0$, the density estimate is
 \begin{equation}
 \fhat(x) \;=\; \frac{1}{n h} \sum_{i=1}^{n} k\!\left(\frac{x - x_i}{h}\right),
@@ -374,7 +340,7 @@ smoothness, and $h$ decides how much of it.
 The window is the only real choice. Too small, and the estimate degenerates towards a
 collection of spikes at the observations, reproducing the sample rather than the
 distribution; too large, and genuine structure is smoothed away, with separate modes merging
-into one. Everything else --- the shape of the kernel, the details of the implementation ---
+into one. Everything else, the shape of the kernel and the details of the implementation,
 matters far less. Chapter~\ref{sec:window} is devoted to this single number.
 
 \subsection{The logistic kernel and a closed-form distribution function}
@@ -419,7 +385,7 @@ Gaussian row.}
 \label{tab:kernels}
 \end{table}
 
-Every classical bandwidth rule --- Silverman's, Scott's, the plug-in family --- is derived
+Every classical bandwidth rule (Silverman's, Scott's, the plug-in family) is derived
 for a kernel of unit standard deviation. Using such a rule with the logistic kernel and no
 correction therefore smooths $1.814$ times more than intended. The fix is to divide the
 recommended width by the kernel's standard deviation, so that the two kernels smooth
@@ -457,7 +423,7 @@ The \textbf{Kolmogorov--Smirnov distance} $\sup_x |\Fhat(x) - F(x)|$ scores the 
 function. It has a natural reference point: the empirical distribution function, which uses
 no smoothing at all, has expected KS distance $\sqrt{\pi/2}\,\ln 2 / \sqrt{n} \approx
 0.8687/\sqrt{n}$. No estimator can reliably do much better than this, so it serves as a
-statistical floor --- at $n = 500$ it is $0.0388$.
+statistical floor: at $n = 500$ it is $0.0388$.
 
 The \textbf{integrated squared error} $\int (\fhat - f)^2$ scores the density. This is the
 measure that matters most here, since the density is what the assignment ultimately asks for,
@@ -468,8 +434,8 @@ and a factor of seven and a half on the integrated squared error; judging that w
 first number alone would have declared it acceptable.
 
 Two derived quantities are used when comparing selectors. The \textbf{oracle} is the window
-that minimises the true error for the sample at hand. It is not a selector --- it uses the
-answer --- and it is never part of any procedure we propose; it serves only as a
+that minimises the true error for the sample at hand. It is not a selector, since it uses
+the answer, and it is never part of any procedure we propose; it serves only as a
 normaliser, since absolute errors are not comparable across distributions with different
 shapes. The \textbf{relative efficiency} of a selector is its error divided by the oracle's,
 a number at least $1$, where $1$ means it found the best window achievable with that
