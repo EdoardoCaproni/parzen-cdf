@@ -27,7 +27,14 @@ REGOLE = [
                 r"the reader (will|should)|we now turn)\b", re.I)),
     ("S6", "formula di transizione",
      re.compile(r"\b(That said|Having said that|With that in mind|In other words, then)\b")),
+    # Aggiunta dopo averne trovate 13 in 28 pagine: non e' un errore, ma la frequenza
+    # tradisce una voce sola che applica una formula. Si segnala se supera le quattro.
+    ("S7", "costruzione 'is worth -ing'",
+     re.compile(r"\b(is|are|it is|seems) worth\s+\w+ing\b", re.I)),
 ]
+
+# Alcune regole tollerano poche occorrenze e diventano un problema solo in quantita'.
+SOGLIE = {"S7": 4}
 
 # Parole che in un testo tecnico ci stanno, ma che se abbondano segnalano un tono
 # uniformemente enfatico. Non sono errori: sono un termometro.
@@ -57,9 +64,11 @@ def controlla(path):
         for i, riga in enumerate(righe, 1):
             for m in pattern.finditer(riga):
                 colpi.append((i, riga.strip()[:88]))
-        if colpi:
-            trovati += len(colpi)
-            print(f"\n  {codice}  {nome}: {len(colpi)}")
+        soglia = SOGLIE.get(codice, 0)
+        if len(colpi) > soglia:
+            trovati += len(colpi) - soglia
+            oltre = f" (soglia {soglia})" if soglia else ""
+            print(f"\n  {codice}  {nome}: {len(colpi)}{oltre}")
             for i, testo_riga in colpi[:6]:
                 print(f"       riga {i:>4}  {testo_riga}")
             if len(colpi) > 6:

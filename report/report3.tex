@@ -84,8 +84,7 @@ the first.
 
 The order matters, and it is not incidental. One could estimate the density directly and
 integrate it. Going the other way round, estimating $F$ first and differentiating, is
-what the assignment prescribes, and it also has a technical justification worth stating
-early. A distribution function is a smoother object than a density: it is an integral, and
+what the assignment prescribes, and there is a technical reason for it as well. A distribution function is a smoother object than a density: it is an integral, and
 integration averages away exactly the kind of local fluctuation that makes density
 estimation hard. A finite sample produces a jagged density estimate but a rather well
 behaved cumulative one. The price is paid at the end, when differentiating brings the
@@ -178,8 +177,8 @@ approximate-and-expensive.
 
 Ancestral sampling reduces the problem to drawing from a single normal component, which
 leaves the question of how a normal variate is produced from uniform random bits. This is a
-classical problem with several classical answers, and it is worth a paragraph because the
-efficiency of the whole simulation depends on it.
+classical problem with several classical answers, and the efficiency of the whole simulation
+depends on which one is used.
 
 The obvious approach, inverting the normal distribution function, requires evaluating a
 special function for every sample. The Box--Muller transform produces two normal variates
@@ -210,17 +209,17 @@ The point that matters for us is that this is a rejection sampler, and rejection
 because the procedure is equivalent to sampling uniformly under the curve and keeping the
 abscissa. The speed is not bought with accuracy, and there is no approximation to declare.
 
-The two levels are easy to confuse, so it is worth separating them. The Ziggurat is not
-something we implemented: it is the algorithm NumPy uses internally when it draws a
-standard normal variate. We verified this rather than assuming it. The
-documentation strings do not mention the algorithm, but the compiled library that
-\texttt{Generator} links against exports symbols named after it, among them the tail
-cut-off constant of the normal Ziggurat and its reciprocal, while the legacy
-\texttt{RandomState} module exports no such symbol, consistent with its use of the polar
-method. And ancestral sampling and the Ziggurat are not
-alternatives: they sit at different levels and compose. Ancestral sampling decides
-\emph{which} normal to draw from; the Ziggurat is how each individual normal variate is
-actually produced.
+The two levels are easy to confuse, so they are best separated. The Ziggurat is not something
+we implemented: it is the algorithm NumPy uses internally when it draws a standard normal
+variate. We verified this rather than assuming it. The documentation strings do not mention
+the algorithm, but the compiled library that \texttt{Generator} links against exports symbols
+named after it, among them the tail cut-off constant of the normal Ziggurat and its
+reciprocal, while the legacy \texttt{RandomState} module exports no such symbol, consistent
+with its use of the polar method.
+
+The two are also not alternatives to one another: they sit at different levels and compose.
+Ancestral sampling decides \emph{which} normal to draw from; the Ziggurat is how each
+individual normal variate is actually produced.
 
 \subsection{Checking the generator}
 
@@ -432,8 +431,8 @@ ladder of Gaussian mixtures and picking a value that works across them gives
 $h_1 = 1.5\,\shat$, which is what we used for some time. The result looked convincing, and on
 the distributions it was tested against it was.
 
-There are three reasons why a rule obtained that way cannot be trusted, and they are worth
-separating because only the third is about the number itself.
+Three separate reasons make a rule obtained that way untrustworthy, and only the last of them
+is about the number itself.
 
 The first is that the benchmark was also the prize. The constant was tuned on a handful of
 Gaussian mixtures and then validated on the same family, including ten mixtures drawn at
@@ -528,8 +527,8 @@ column, where its objective has no structural advantage.
 
 \subsection{The central result: the constant is not a constant}
 
-Before comparing selectors it is worth asking whether the rule we were looking for exists at
-all. For each family with a free constant we computed the optimal value
+Before comparing selectors, there is a prior question: does the rule we were looking for
+exist at all? For each family with a free constant we computed the optimal value
 separately on each density. If a law of the form $h_1 = c\,\shat$ existed, those values
 would agree.
 
@@ -653,8 +652,8 @@ The window is chosen by least-squares cross-validation on a grid of candidates b
 robust scale estimate, and reported in the form the schedule requires, as
 $\hhat_1 = \hhat\sqrt n$.
 
-This is worth stating precisely, because it is the point on which the procedure is most
-likely to be questioned. We are not computing a window by one route and then dressing it up
+This needs stating precisely, because it is the point on which the procedure is most likely
+to be questioned. We are not computing a window by one route and then dressing it up
 as $h_1$ afterwards. We are \emph{estimating} $h_1$, which was never a universal constant to
 begin with: $1.5\,\shat$ is itself a function of the sample, since $\shat$ is computed from
 the data. Both quantities have the same formal status, and what changes is the quality of the
@@ -712,8 +711,8 @@ running maximum so that the curve never decreases, and rescaling the result to s
 exactly. The density was then obtained as a finite difference of that repaired curve.
 
 That arrangement works, in the sense that what comes out is a monotone curve from $0$ to $1$
-with unit mass. It is worth being precise about what it actually guarantees, because the
-three guarantees have different standing.
+with unit mass. What it actually guarantees, however, is three things of rather different
+standing.
 
 The range is genuinely enforced by the final sigmoid. Monotonicity is enforced only after the
 fact, and only at the grid points that were evaluated. The limits at $0$ and $1$ are not
@@ -805,7 +804,7 @@ positive-weight variant and the mixture are non-monotone in none. Evaluated at $
 the mixture returns exactly $0$ and exactly $1$, and its density integrates to $1.000000$
 over a wide domain without any normalisation.
 
-The comparison with the positive-weight variant is worth making explicitly, since on
+The comparison with the positive-weight variant should be made explicitly, since on
 monotonicity alone the two are equivalent. What separates them is everything else: the
 positive-weight network still cannot reach $0$ and $1$ by Theorem~\ref{thm:saturation}, still
 requires a grid to produce a density, and is not equivariant under rescaling of the data.
@@ -955,7 +954,8 @@ only the points it looks at, and $\lambda$ trades against the fit. Under
 Theorem~\ref{thm:validity} there is nothing left for it to enforce.
 
 The \textbf{rectification} step, the running maximum followed by rescaling, does real work,
-which is worth acknowledging: an unconstrained network genuinely produces non-monotone curves.
+and that should be acknowledged: an unconstrained network genuinely produces non-monotone
+curves.
 Training architecture~\eqref{eq:mlp} on these labels, about one initialisation in four yields
 a curve that decreases somewhere, in the worst case over $6\%$ of the grid points. The step was therefore not decorative. It is simply the wrong
 remedy: a repair applied to the output cannot restore a property the model never had, and it
@@ -1288,7 +1288,8 @@ Figure~\ref{fig:estimate} is the output of the procedure on a single sample, pro
 same function a user would call. All three modes are recovered, including the narrow one on
 the right, and the tails settle onto $0$ and $1$ rather than approaching them.
 
-Two artefacts are visible and worth naming rather than glossing over. The central mode is
+Two artefacts are visible, and naming them seems better than glossing over them. The central
+mode is
 split into a double bump that the truth does not have, and the right-hand peak overshoots by
 about a quarter. Both come from the same source: the labels are built with a deliberately
 narrow window, so they carry the sampling fluctuation of this particular sample, and twelve
@@ -1428,7 +1429,8 @@ A high rank correlation means an indicator orders windows the way the truth woul
 mean the indicator can be converted into an error estimate. On the professor's data we will be
 able to choose, not to certify.
 
-Finally, the coverage is limited in ways worth stating: one dimension, sample sizes of five
+Finally, the coverage is limited in ways that should be stated: one dimension, sample sizes
+of five
 hundred and one thousand, targets that are all mixtures of standard families, and no target
 with both compact support and complex multimodality, which would be the worst case for the
 architecture.
