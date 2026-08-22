@@ -1,0 +1,290 @@
+% =====================================================================================
+% parzen-cdf project report -- self-contained version.
+%
+% STRUCTURE: one chapter per stage of the pipeline, in the order the data flows through
+% them. Each chapter says what the stage does, why it is built that way, and what it
+% replaces with respect to earlier versions of the project.
+%
+% This file is the skeleton: "TODO" comments say what belongs in each section.
+% =====================================================================================
+
+\documentclass[11pt]{article}
+
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\graphicspath{{../results/}}
+\hypersetup{colorlinks=true, linkcolor=blue!50!black, urlcolor=blue!50!black}
+
+\newcommand{\Fhat}{\widehat{F}}
+\newcommand{\fhat}{\widehat{f}}
+\newcommand{\shat}{\hat{\sigma}}
+\newcommand{\hhat}{\hat{h}}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\newcommand{\takeaway}[1]{\medskip\noindent\fcolorbox{black!30}{black!4}{%
+  \parbox{0.97\linewidth}{\textbf{In short.} #1}}\medskip}
+
+\title{Nonparametric estimation of a distribution function\\
+and of the density derived from it\\
+\large Parzen window and neural network: method, measurements, and limits}
+\author{\texttt{parzen-cdf} project}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+% TODO: given a finite sample and no assumption on the distribution behind it, we estimate
+% the CDF with a network trained on Parzen-window labels and differentiate it to obtain the
+% density. Announce the three non-obvious choices: the window comes from cross-validation
+% rather than from a rule of thumb; the architecture is a valid CDF by construction; the
+% quality is reported through quantities computable without knowing the truth. Close with
+% the limitation we state openly (sharp edges).
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% =====================================================================================
+\section{Introduction}
+% =====================================================================================
+
+\subsection{The problem}
+% TODO: x_1..x_n i.i.d. from an unknown F; estimate F and from it f. Why go through the CDF
+% rather than estimating f directly: it is what the assignment asks, but it also has a
+% technical reason (the CDF is smoother, and integration averages noise away).
+
+\subsection{What is delivered}
+% TODO: two functions evaluable at any point, not tables; a value of h1 in the required
+% form h_n = h1/sqrt(n); a diagnostic block computable without the truth; a command line.
+
+\subsection{How to read this document}
+% TODO: every quantitative claim states how it was obtained. Proofs are in appendix A, the
+% scripts producing each number in appendix B. The "what we do not claim" sections are
+% deliberate.
+
+\subsection{Where this work comes from}
+% TODO: short and honest history; it explains why the project looks the way it does. First
+% pass (window from Silverman's rule, mis-scaled for the logistic kernel); revision that
+% fixed the scale and introduced the h1/sqrt(n) schedule with the 1.5-sigma rule; this
+% third pass, which reopens the rule, the architecture and the way results are delivered.
+% Say plainly what replaces what.
+
+% =====================================================================================
+\section{Development data: generating honest samples}
+% =====================================================================================
+
+\subsection{Why the generator matters even though it is not part of the pipeline}
+% TODO: the samples we calibrate and measure on are produced by us. A biased generator
+% would contaminate every downstream conclusion without giving any signal.
+
+\subsection{Ancestral sampling from a mixture}
+% TODO: a mixture defined as a two-stage process; the one-line proof that the method is
+% exact; cost O(n).
+
+\subsection{The Ziggurat algorithm}
+% TODO: introduce it properly but briefly. The problem (uniforms to normals), the
+% alternatives (inversion, Box-Muller, polar), the idea of equal-area strips, why it is
+% exact rather than approximate. Make clear it is NumPy's code, not ours, and that it sits
+% at a different level from ancestral sampling: the two compose, they are not alternatives.
+
+\subsection{Checking the generator}
+% TODO: the tests performed and their outcome. Stress the right test: uniformity of the
+% p-values, not "how many rejections did I get". The check on consecutive seeds.
+
+\subsection{A note on circularity}
+% TODO: the argument "the generator never touches the CDF, so learning F is not cheating"
+% does not hold, and should be replaced by the correct one: the estimator sees only the
+% samples.
+
+% =====================================================================================
+\section{The Parzen window estimator}
+% =====================================================================================
+
+\subsection{Definition and intuition}
+% TODO: a kernel centred on each observation; the average; the role of h.
+
+\subsection{The logistic kernel and a closed-form CDF}
+% TODO: why the logistic one: its antiderivative is the sigmoid, so the estimated CDF is
+% exact and smooth, and the density is exactly its derivative. Comparison with the other
+% kernels in the registry.
+
+\subsection{The window must shrink as the sample grows}
+% TODO: the consistency conditions (h to 0, n*h to infinity) and the h_n = h1/sqrt(n)
+% schedule.
+
+\subsection{How an estimate is scored}
+% TODO: KS on the CDF, ISE on the density, and why the second is the one that matters
+% here. The oracle as a normaliser, not as a selector. Relative efficiency.
+
+% =====================================================================================
+\section{The window: the central problem}
+% =====================================================================================
+
+\subsection{The rule of thumb, and why it could not work}
+% TODO: the h1 = 1.5*sigma rule of the previous pass; the three methodological defects
+% (self-referential benchmark, wrong anchoring quantity, wrong validation metric).
+
+\subsection{An external test bench}
+% TODO: the Marron and Wand densities, what they are and why they are used; our three
+% additions.
+
+\subsection{The selectors compared}
+% TODO: list and form of each; the scale correction for the logistic kernel; the
+% leave-one-density-out calibration for those with a free constant.
+
+\subsection{The central result: the constant is not a constant}
+% TODO: the spread of the optimal constant; the fact that recalibrating it makes things
+% worse.
+
+\subsection{Least-squares cross-validation, and its measured instability}
+% TODO: the ranking; the instability measured, and why it does not transfer to the error.
+
+\subsection{What the square-root-of-n schedule costs}
+% TODO: the empirical exponent against the theoretical one; the measured cost of carrying
+% h1 across budgets; why at a fixed budget it costs nothing.
+
+\subsection{What is delivered}
+% TODO: h1 estimated inside the required form; the clarification that h1 was never a
+% universal constant.
+
+% =====================================================================================
+\section{The network: enforcing the shape of a distribution function}
+% =====================================================================================
+
+\subsection{What the output must guarantee}
+% TODO: the four requirements (range, monotonicity, limits, differentiability) and why the
+% fourth is needed here (the density is the derivative).
+
+\subsection{The first attempt and its limits}
+% TODO: MLP with a final sigmoid, monotonicity repaired downstream by a running maximum and
+% a rescaling. What it actually guarantees and what it does not.
+
+\subsection{The saturation theorem}
+% TODO: statement and consequence: the tails are unreachable with finite parameters.
+% Pointer to the proof. Supporting measurements.
+
+\subsection{The chosen architecture}
+% TODO: convex mixture of logistic CDFs; its relation to the Parzen estimator (same form,
+% with learned weights, centres and windows); the reference to sigmoidal flows.
+
+\subsection{The guarantees, proved}
+% TODO: statement; the point that the hypotheses hold on the whole parameter space, not on
+% a feasible region to be policed. Numerical verification.
+
+\subsection{No loss of expressiveness}
+% TODO: with J = n the family contains the Parzen estimator exactly; density of the family
+% as J grows.
+
+\subsection{Standardisation and equivariance}
+% TODO: the measured problem (translate the data and the estimate collapses), the theorem,
+% the fix.
+
+\subsection{How many components}
+% TODO: the calibration; the asymmetry of the risk; the value chosen.
+
+% =====================================================================================
+\section{Training}
+% =====================================================================================
+
+\subsection{The labels: the Parzen Neural Network recipe}
+% TODO: leave-one-out labels at the sample points only; the formula and why the point's own
+% contribution is subtracted.
+
+\subsection{Why a deliberately narrow window}
+% TODO: noisy but unbiased labels, averaged away by limited capacity.
+
+\subsection{What is no longer needed}
+% TODO: monotonicity penalty, rectification, clamping: why they were there and why with
+% this architecture they have no object. The clamp broke the identity between density and
+% derivative.
+
+\subsection{Reproducibility}
+% TODO: the defect found (the seed did not control initialisation) and how it was closed;
+% the stronger property of the new architecture (no residual randomness at all).
+
+% =====================================================================================
+\section{From the distribution function to the density}
+% =====================================================================================
+
+\subsection{The closed-form derivative}
+% TODO: the formula; the fact that the identity f = dF/dx is algebraic, not numerical.
+
+\subsection{Why finite differences on a grid were a problem}
+% TODO: dependence on resolution; the inconsistency introduced by the clamp.
+
+% =====================================================================================
+\section{Delivering an estimate without knowing the truth}
+% =====================================================================================
+
+\subsection{The evaluation domain}
+% TODO: why a domain is needed; why it cannot come from the true distribution; the rule
+% chosen and the criterion behind it; the principle (dispersion for the extent, window for
+% the resolution).
+
+\subsection{Diagnostics computable from the samples alone}
+% TODO: which indicators inform and which mislead; the case of the comparison against the
+% empirical CDF, which is the most natural trap.
+
+\subsection{The interface}
+% TODO: the single entry point and the command line; what it produces.
+
+% =====================================================================================
+\section{Results}
+% =====================================================================================
+
+\subsection{Against the previous version of the pipeline}
+% TODO: the end-to-end table; the comment on the worst case; how to read the mass column.
+
+\subsection{Against the Parzen estimator}
+% TODO: when the network beats its teacher and when it does not.
+
+\subsection{What the figures show}
+% TODO: one or two figures with commentary.
+
+% =====================================================================================
+\section{Scope and limits}
+% =====================================================================================
+
+\subsection{Distributions from other families}
+% TODO: the resilience study; the two suspicions refuted and the one confirmed.
+
+\subsection{The structural limit}
+% TODO: sharp edges; the check that raising capacity is not a free remedy; the decision to
+% state the limit.
+
+\subsection{What we do not claim}
+% TODO: explicit list.
+
+% =====================================================================================
+\section{Conclusions}
+% =====================================================================================
+% TODO: what was built, the three choices that characterise it, and what would remain to do.
+
+% =====================================================================================
+\appendix
+\section{Proofs}
+% =====================================================================================
+% TODO: T1 saturation; T2 the mixture is a CDF; T3 expressiveness; T5 the clamp adds mass;
+% T6 equivariance.
+
+% =====================================================================================
+\section{Reproducibility}
+% =====================================================================================
+% TODO: table study -> script -> output file; how to re-run; environment.
+
+% =====================================================================================
+\section{Decision log}
+% =====================================================================================
+% TODO: compact table decision -> reason -> where it is measured.
+
+\end{document}
