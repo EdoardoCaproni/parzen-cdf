@@ -1217,7 +1217,7 @@ Everything up to here argued for individual choices. What follows measures the p
 whole, which is what would actually be run on a set of observations, against the one it
 replaces.
 
-Both are given the same samples and, importantly, the same evaluation domain, built from the
+Both are given the same samples and the same evaluation domain, built from the
 data by the rule of Section~8.1. The earlier pipeline would have taken its domain from the
 true distribution; granting it the harder version would have made the comparison meaningless
 in our favour.
@@ -1349,21 +1349,162 @@ has separated structure.
 
 % =====================================================================================
 \section{Scope and limits}
+\label{sec:limits}
 % =====================================================================================
 
 \subsection{Distributions from other families}
-% TODO
+
+Every calibration in this report was carried out on mixtures of normals: the window, the
+number of components, the rule for the domain. The assignment concerns a multimodal
+distribution, which makes that family a reasonable working assumption, but it is an
+assumption, and it is cheap to test now that the procedure accepts any vector of numbers.
+
+We applied it unchanged to twelve distributions from other families: uniform, exponential,
+lognormal, Student's $t$ with three, two and one degrees of freedom, and mixtures combining
+these with normals. The $t$ with two degrees of freedom has infinite variance and the Cauchy
+has no mean, so they probe the assumptions harder than anything in the main benchmark.
+
+Before measuring we wrote down what we expected to break. The domain rule uses $\shat$, which
+is unstable under heavy tails and undefined in the limit, so we expected the domain to
+inflate. The logistic kernel has exponential tails, so we expected polynomial ones to be
+poorly reproduced. And a mixture of logistic distribution functions has strictly positive
+density everywhere, so we expected sharp edges to be rounded off.
+
+The first two expectations were wrong, and the reasons are worth recording.
+
+The domain does not inflate; it tightens. The ratio between the width of the domain and the
+range of the data falls from $2.64$ on the Gaussian reference to $1.27$ on the Cauchy. The
+sample standard deviation does grow on heavy tails, but the range $\max x - \min x$ grows
+faster, because it is governed by extreme order statistics, so the additive margin of
+$3\shat$ becomes negligible against an already very wide interval. The rule corrects itself
+for a reason we had not anticipated.
+
+Heavy tails are also not harder, they are easier. The $t$ with three degrees of freedom gives
+an integrated squared error of $0.4$ times the Gaussian reference, and the network beats the
+Parzen estimator on it by a factor of $0.7$. The argument we had made confused two things: the
+tails are indeed reproduced badly, but they contain very little probability, and the
+integrated squared error is dominated by the central region. By that measure the difficulty of
+a density lies in its fine structure, not in the weight of its tails, and a $t$ density is a
+single smooth peak.
 
 \subsection{The structural limit}
-% TODO
+
+The third expectation was correct, and it is the one real limitation of the method.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Target} & \textbf{ISE} & \textbf{vs.\ Gaussian ref.} & \textbf{Network / Parzen} \\
+\midrule
+Gaussian mixture (reference) & $0.0038$ & $1.0\times$ & $0.87$ \\
+Student's $t$, 3 d.o.f.\ & $0.0016$ & $0.4\times$ & $0.70$ \\
+lognormal & $0.0057$ & $1.5\times$ & $1.17$ \\
+normal $+$ uniform & $0.0117$ & $3.1\times$ & $1.22$ \\
+uniform & $0.0220$ & $5.8\times$ & $1.26$ \\
+exponential & $0.0303$ & $8.0\times$ & $1.24$ \\
+two separated uniforms & $0.0521$ & $13.8\times$ & $2.20$ \\
+\bottomrule
+\end{tabular}
+\caption{Density error on distributions from other families, $n = 500$, five samples each.
+The last column is the ratio between the network and the Parzen estimator it learns from;
+above $1$ the network is worse.}
+\label{tab:resilience}
+\end{table}
+
+A discontinuity in the density cannot be represented by a finite mixture of smooth
+distribution functions, and the error grows accordingly: nearly six times the reference on a
+uniform, eight on an exponential, fourteen on two separated uniforms. The last case is also
+the only one in the whole study where the network is clearly worse than its own teacher, by a
+factor of two, which fits the explanation: the Parzen estimator has $n$ kernels available to
+approximate the jump and the network has twelve components.
+
+That suggests a remedy, and we tested it rather than assuming it would work. Raising the
+number of components from twelve to forty-eight halves the error on two separated uniforms,
+from $0.054$ to $0.027$, and worsens it by $39\%$ on the trimodal Gaussian mixture and by
+$31\%$ on the six-mode one. The trade runs in both directions, so there is no free
+improvement to collect, and even at forty-eight components the network still does not catch
+the Parzen estimator on the edges. We keep twelve components, which is calibrated for the
+targets the assignment describes, and state the limitation instead of hiding it: on a
+distribution with compact support the estimate remains a valid distribution function, but its
+density rounds off the edges and the error grows by a factor between three and fourteen.
 
 \subsection{What we do not claim}
-% TODO
+
+Several statements that would be convenient are not supported by what we measured, and it
+seems more useful to list them than to leave them implicit.
+
+We do not claim that the network is more accurate than the Parzen estimator in general. It is
+ahead on average over the five main targets, and Table~\ref{tab:resilience} contains targets
+where it is behind. What it provides reliably is form rather than accuracy: a function instead
+of a table, valid by construction, with a closed-form density and an evaluation cost
+independent of the sample size.
+
+We do not claim that cross-validation is the best window selector in all circumstances. On
+smooth unimodal targets the plug-in and Scott's rule beat it. The recommendation is
+conditional on the situation this project is in, which is an unknown and declaredly
+multimodal target.
+
+We do not claim that $3\shat$ is the optimal padding for the domain. It is sufficient: the
+worst case over sixteen densities leaves a mass of $1.1 \times 10^{-4}$ outside, two orders of
+magnitude below the typical estimation error. On a distribution with much heavier tails than
+those tested it might not be, and we have not tested one.
+
+We do not claim that the rank correlations of Table~\ref{tab:diagnostics} calibrate anything.
+A high rank correlation means an indicator orders windows the way the truth would; it does not
+mean the indicator can be converted into an error estimate. On the professor's data we will be
+able to choose, not to certify.
+
+Finally, the coverage is limited in ways worth stating: one dimension, sample sizes of five
+hundred and one thousand, targets that are all mixtures of standard families, and no target
+with both compact support and complex multimodality, which would be the worst case for the
+architecture.
 
 % =====================================================================================
 \section{Conclusions}
 % =====================================================================================
-% TODO
+
+The procedure that comes out of this work takes a vector of observations, chooses a window by
+least-squares cross-validation, builds leave-one-out Parzen labels at the sample points, fits
+a twelve-component mixture of logistic distribution functions to them, and returns that
+mixture together with its derivative in closed form. It reports the window in the form
+$h_n = h_1/\sqrt n$ that the schedule requires, along with diagnostics that need no knowledge
+of the distribution.
+
+Three decisions characterise it, and each replaces something that looked reasonable.
+
+The window is chosen from the data rather than from a rule. We spent a good deal of effort
+looking for a better constant than $1.5\,\shat$ before concluding that the search was
+misconceived: the optimal constant ranges over a factor of twelve across a standard benchmark,
+and calibrating it more carefully makes the rule worse. Cross-validation reaches an efficiency
+of $1.26$ on average and $1.59$ in the worst case, where the rule it replaces reaches $2.27$
+and $9.38$.
+
+The shape constraints live inside the model rather than in a repair step. Writing the network
+as a convex mixture of logistic distribution functions makes monotonicity, the range, the
+limits at infinity, the positivity of the density and its unit mass hold at every parameter
+value, which removes the rectification, the penalty and the clamp at once. The clamp in
+particular was breaking the identity between the two delivered curves, which is a defect no
+amount of tuning would have surfaced.
+
+The estimate is delivered as a pair of functions with diagnostics computable from the sample
+alone. That constraint turned out to be the most productive one in the whole project, because
+it forces every step to be honest about what it knows. It is what exposed the domain being
+taken from the true distribution, and it is what led us to measure which sample-based
+indicators are informative, and to discover that the most natural one is anticorrelated with
+the error it appears to certify.
+
+On the five main targets the resulting pipeline is ahead of the one it replaces on both
+measures and both worst cases, and ahead of the Parzen estimator it learns from on the
+density. Its limitation is stated in Chapter~\ref{sec:limits}: distributions with sharp edges
+are rounded off, and more capacity does not fix that without costing accuracy on the
+multimodal targets the method is meant for.
+
+Two directions remain open. The interactive tool that accompanies the project still runs the
+earlier pipeline and should be brought into line with the present one. And the whole study is
+univariate; the same construction extends to several dimensions, since a convex combination of
+products of logistic distribution functions is again a valid joint distribution function, but
+we have not tested it.
 
 % =====================================================================================
 \appendix
