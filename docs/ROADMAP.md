@@ -41,13 +41,32 @@ Si applica solo dopo che F1 ha prodotto la motivazione scritta.
 |---|---|
 | **B1** — guard pigro su `np.trapezoid` (4 punti) + test di regressione | **fatto** |
 | **B6** — ambiente `.venv/`, dipendenze, baseline dei test | **fatto: 55 test verdi** |
-| `MixtureCDFNet` + standardizzazione + pdf in forma chiusa (D-07…D-11) | prossimo |
-| `report_domain`, `run_from_samples`, diagnostica truth-free (D-12…D-15) | dopo |
-| **B8** — `seed` non controlla l'init: risultati non riproducibili | insieme a D-07 |
-| B2, B3, B4 — allineamento documenti e unificazione selettori | contestuale |
+| prototipo `MixtureCDFNet` + rivalidazione E4/E8/E9 su PyTorch | **fatto** |
+| **B8** — il seme controlla l'inizializzazione, run riproducibili | **fatto** |
+| test di caratterizzazione (rete di sicurezza per il refactor) | **fatto** |
+| specifiche di dettaglio S1–S7 | **fatto** |
+| `MixtureCDFNet` in `src/` + `fit_mixture_cdf` (D-07…D-11) | **fatto** |
+| `report_domain` + `diagnostics.py` (D-12…D-14) | **fatto** |
+| `run_from_samples`, `Estimate`, CLI (P-D3) | **fatto** |
+| verifica end-to-end nuovo contro vecchio | **fatto** |
+| B2 — allineamento di README, `study2.md`, `report2.tex` | con la stesura del report (F3) |
+| B3, B4 — unificazione dei selettori e dell'app | con P-05 |
+| B7 — pulizia del materiale superato | con P-04, prima della consegna |
+| D-15 — isolare in `evaluation.py` ciò che usa la verità | non necessario: il percorso nuovo già non importa `data`, verificato da test sull'AST |
 
 **Baseline registrata:** prima esecuzione end-to-end del codice originale (trimodale,
 n = 500): Parzen KS 0.0457, rete KS 0.0515, massa 1.0000, violazioni 0.00 %.
+
+**Esito del refactor** (5 distribuzioni, 5 semi, n = 500; `redesign_pipeline.md` §9):
+
+| percorso | KS medio | KS peggiore | ISE media | ISE peggiore |
+|---|---|---|---|---|
+| Parzen (LSCV) | 0.0370 | 0.0393 | 0.00514 | 0.00771 |
+| vecchio | 0.0418 | 0.0592 | 0.00594 | 0.01026 |
+| **nuovo** | **0.0361** | **0.0390** | **0.00402** | **0.00649** |
+
+**101 test verdi.** Il percorso nuovo vince su tutte le aggregate, con il margine maggiore
+nel caso peggiore e sul bersaglio più multimodale (KS 1.5×, ISE 3.5×).
 
 ### F3 — Report `non iniziata`
 
