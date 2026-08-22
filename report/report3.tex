@@ -3,7 +3,7 @@
 %
 % STRUCTURE: one chapter per stage of the pipeline, in the order the data flows through
 % them. Each chapter says what the stage does, why it is built that way, and what it
-% replaces with respect to earlier versions of the project.
+% and which alternative it is preferred to.
 % =====================================================================================
 
 \documentclass[11pt]{article}
@@ -48,23 +48,24 @@ Parzen-window labels, and obtain the density by differentiating it. The report i
 self-contained: every quantitative claim states how it was obtained, and the scripts that
 produce each number are listed in Appendix~\ref{app:repro}.
 
-Three choices distinguish this version of the work from its predecessors, and each is
-argued rather than asserted. First, the window width is chosen by cross-validation rather
-than by a rule of thumb: we show that a rule of the form $h_1 = c\,\shat$ cannot exist,
-because the optimal constant varies by more than a factor of ten across distributions, and
-that recalibrating it on a larger benchmark makes matters worse rather than better. Second,
-the network is an architecture whose output is a valid distribution function for every
-value of its parameters, so that monotonicity, the limits at infinity, non-negativity of
-the density and unit mass are guaranteed by construction instead of being repaired
-afterwards on a grid. Third, since on the data the method is meant for the true
-distribution is unknown, quality is reported through quantities computable from the sample
-alone; we measured which of those quantities are informative, and found that the most
-natural one is actively misleading.
+Three features of the procedure are not the obvious choices, and the report argues for each
+rather than asserting it. The window width is chosen by cross-validation instead of a rule of
+thumb, because a rule of the form $h_1 = c\,\shat$ cannot be made to work: on a standard
+benchmark the optimal constant ranges over a factor of twelve between distributions, and
+calibrating it more carefully makes the rule worse. The network is written so that its output
+is a valid distribution function at every value of its parameters, which puts monotonicity,
+the limits at infinity, the positivity of the density and its unit mass into the model rather
+than into a repair step applied to a grid afterwards. And because the distribution is unknown
+on the data the method is built for, quality is reported through quantities computable from
+the sample alone; we measured which of those are informative, and the one a reader would most
+expect to see turns out to be anticorrelated with the error it appears to certify.
 
-We also state a limitation openly: a mixture of logistic distribution functions has
-strictly positive density on the whole line, and therefore rounds off sharp edges. On
-distributions with compact support the error grows by a factor between three and fourteen.
-We checked whether more capacity repairs this, and it does not come for free.
+On five multimodal targets at $n = 500$ the procedure improves on a conventional neural design
+and on the Parzen estimator it learns from. One limitation is stated rather than left implicit:
+a mixture of logistic distribution functions has strictly positive density on the whole line,
+so distributions with sharp edges are rounded off and the error grows by a factor between
+three and fourteen. Adding capacity halves that error and costs a third of the accuracy on the
+multimodal targets, so we do not take it.
 \end{abstract}
 
 \tableofcontents
@@ -113,37 +114,6 @@ The pipeline takes a vector of numbers and returns:
 
 Proofs are collected in Appendix~\ref{app:proofs}, and Appendix~\ref{app:repro} lists the
 script that reproduces each measurement reported here.
-
-\subsection{Where this work comes from}
-
-The project went through three passes, and the reason the present one exists is worth
-telling, because it explains several choices that would otherwise look arbitrary.
-
-The \textbf{first pass} built the Parzen-window estimator and chose its window with
-Silverman's rule of thumb. The rule is standard, but its constant is derived for a Gaussian
-kernel, that is, for a kernel with unit standard deviation. The kernel actually in use is
-the logistic one, whose standard deviation is $\pi/\sqrt3 \approx 1.814$. Applying the rule
-without correcting for this oversmooths by exactly that factor. It is a small oversight with
-a visible cost: on the reference trimodal mixture at $n = 500$, averaged over ten samples,
-the uncorrected rule gives a Kolmogorov--Smirnov distance of $0.0628$ against $0.0449$ for
-the corrected one, and an integrated squared error on the density of $0.0334$ against
-$0.0154$, more than a factor of two.
-
-The \textbf{second pass} fixed the scale, adopted the schedule $h_n = h_1/\sqrt{n}$, and
-looked for a rule of thumb for the remaining constant, settling on $h_1 = 1.5\,\shat$. It
-also introduced the neural stage, trained on Parzen labels, with monotonicity repaired
-downstream by taking a running maximum of the estimated curve and rescaling it to $[0,1]$.
-
-The \textbf{third pass} is this one. It began as a review and turned into a redesign. The
-rule for $h_1$ had been calibrated and validated on the same small family of distributions,
-which measures how well one has interpolated one's own benchmark rather than how well the
-rule generalises. The network's guarantees were obtained after the fact, on a grid whose
-extent was taken from the true distribution, an object that does not exist once the method
-is applied to real data. And the pipeline had no way of reading a sample from a file at
-all, which for a method meant to be run on someone else's data is a curious omission.
-
-Everything below is re-derived from scratch, and where a conclusion of an earlier pass is
-superseded the measurement that supersedes it is given alongside.
 
 % =====================================================================================
 \section{Development data: generating honest samples}
@@ -363,9 +333,8 @@ over a fine grid.
 That the estimate is a sum of sigmoids will matter again in Chapter~\ref{sec:network}, where
 the chosen network architecture turns out to have exactly the same form.
 
-The choice of kernel carries a subtlety that caused a real error in the first pass of this
-project. Kernels differ in how much they smooth at a given $h$, because they have different
-spreads:
+The choice of kernel carries a subtlety that is easy to miss, and we did miss it at first.
+Kernels differ in how much they smooth at a given $h$, because they have different spreads:
 
 \begin{table}[H]
 \centering
@@ -457,10 +426,11 @@ relative to an oracle that is used only as a normaliser.}
 
 \subsection{The rule of thumb, and why it could not work}
 
-The second pass of the project settled on $h_1 = 1.5\,\shat$, with $\shat$ the sample
-standard deviation. The constant was obtained by sweeping $h_1$ over three orders of
-magnitude on a ladder of mixtures and picking a value that worked well across them. The
-result looked convincing, and on the distributions it was tested against it was.
+The natural way to fix $h_1$ is to tie it to a scale estimated from the data, and the natural
+scale is the sample standard deviation. Sweeping $h_1$ over three orders of magnitude on a
+ladder of Gaussian mixtures and picking a value that works across them gives
+$h_1 = 1.5\,\shat$, which is what we used for some time. The result looked convincing, and on
+the distributions it was tested against it was.
 
 There are three reasons why a rule obtained that way cannot be trusted, and they are worth
 separating because only the third is about the number itself.
@@ -499,9 +469,9 @@ one. These are exactly the shapes on which a globally anchored rule fails.
 We use the thirteen of them whose parameters we could verify against a primary source, the
 implementation shipped with the R package \texttt{nor1mix}; the two comb densities were left
 out because we could not confirm their parameters, and a mistyped density would invalidate
-everything measured on it. To these we add the three Gaussian mixtures used in the earlier
-passes of the project, so that the new results can be compared directly against the old
-benchmark. Sixteen densities in total, all normal mixtures, so pdf and CDF are available in
+everything measured on it. To these we add three Gaussian mixtures of our own, of the kind
+the assignment describes, so that the benchmark also covers the case of direct interest.
+Sixteen densities in total, all normal mixtures, so pdf and CDF are available in
 closed form and every estimate can be scored against the truth to machine precision.
 
 \subsection{The selectors compared}
@@ -517,7 +487,7 @@ oversmooth by the same factor and the comparison would be meaningless.
 \toprule
 \textbf{Selector} & \textbf{Form} \\
 \midrule
-constant start & $h = 1/\sqrt{n}$, the untuned starting point of the earlier study \\
+constant start & $h = 1/\sqrt{n}$, an untuned reference point \\
 $\sigma$-rule & $h = 1.5\,\shat/\sqrt{n}$, the rule to beat \\
 Silverman & $0.9\,\min(\shat,\ \mathrm{IQR}/1.349)\, n^{-1/5}$ \\
 Scott & $1.06\,\shat\, n^{-1/5}$ \\
@@ -558,8 +528,8 @@ column, where its objective has no structural advantage.
 
 \subsection{The central result: the constant is not a constant}
 
-Before comparing selectors it is worth asking whether the rule the earlier pass was looking
-for exists at all. For each family with a free constant we computed the optimal value
+Before comparing selectors it is worth asking whether the rule we were looking for exists at
+all. For each family with a free constant we computed the optimal value
 separately on each density. If a law of the form $h_1 = c\,\shat$ existed, those values
 would agree.
 
@@ -692,8 +662,8 @@ estimator, which is what Table~\ref{tab:selector-results} measures.
 
 The estimated $\hhat_1$ does depend on the sample, and it is not constant across budgets
 either, for the reason given in Section~\ref{sec:schedule-cost}. Both properties are shared
-with the rule it replaces. What is not shared is the ratio $\hhat_1/\shat$, which the earlier
-rule fixed at $1.5$ and which in fact ranges from $0.32$ to $3.77$ across the sixteen
+with the rule it replaces. What is not shared is the ratio $\hhat_1/\shat$, which a fixed rule
+holds constant and which in fact ranges from $0.32$ to $3.77$ across the sixteen
 densities of the benchmark at $n = 500$. That spread is produced by the recommended selector
 running on data, not by an oracle: even a procedure that looks at the sample does not find a
 constant ratio, because there is no constant ratio to find.
@@ -730,8 +700,8 @@ or afterwards, by repairing whatever the model produced.
 
 \subsection{The first attempt and its limits}
 
-The architecture inherited from the earlier passes is a small multilayer perceptron with a
-sigmoid on the output,
+The first architecture one would reach for, and the one we started from, is a small
+multilayer perceptron with a sigmoid on the output,
 \begin{equation}
 F_\theta(x) \;=\; \sigma\!\Big( \textstyle\sum_{j} w_j\, \sigma(a_j x + b_j) + c \Big),
 \label{eq:mlp}
@@ -749,8 +719,8 @@ The range is genuinely enforced by the final sigmoid. Monotonicity is enforced o
 fact, and only at the grid points that were evaluated. The limits at $0$ and $1$ are not
 enforced at all: they are imposed by the rescaling, which stretches whatever the network
 produced so that it starts at $0$ and ends at $1$ at the two ends of the grid. Since the grid
-in the earlier code was built from the true distribution, that last step used information
-which does not exist when the method is applied to real data.
+in a study of this kind is naturally built from the known distribution, that last step uses
+information which does not exist when the method is applied to real data.
 
 There is also a subtler consequence. The delivered density is a finite difference of a
 post-processed curve, not the derivative of the network, so its accuracy depends on the grid
@@ -776,7 +746,7 @@ The proof is in Appendix~\ref{app:proofs}; it is three lines and amounts to the 
 that a finite sum of bounded terms is bounded. The consequence is that reaching the tails
 requires the weights to diverge, so gradient descent can only creep towards them.
 
-The effect is measurable. Training the inherited architecture on the reference trimodal
+The effect is measurable. Training architecture~\eqref{eq:mlp} on the reference trimodal
 mixture at $n = 1000$ and evaluating it fifty standard deviations away from the data, the
 total mass it can span is $0.9955$ in the unconstrained version and $0.9903$ in the
 positive-weight one. Around half a percent of the probability is unreachable, and the
@@ -865,15 +835,15 @@ along with it and otherwise be identical.
 
 The Parzen estimator has this property already, provided the window is chosen equivariantly:
 $\shat$ scales with $\alpha$, so $h$ does too, and the kernel arguments $(x - x_i)/h$ are
-unchanged. The network does not get it for free. In the inherited architecture the weights
-are initialised without reference to the data and the biases start at zero, so every sigmoid
-is centred at the origin regardless of where the sample lies, and the optimiser works in
-absolute units.
+unchanged. A network does not get it for free. In architecture~\eqref{eq:mlp} the weights are
+initialised without reference to the data and the biases start at zero, so every sigmoid is
+centred at the origin regardless of where the sample lies, and the optimiser works in absolute
+units.
 
-The consequence is severe and easy to miss, because the reference mixtures used throughout
-the project all sit near the origin. Translating the same trimodal sample by $100$ and
-retraining, the inherited pipeline returns a Kolmogorov--Smirnov distance of $0.50$ on two
-seeds out of three and $0.70$ on the third, against $0.03$ untranslated. A KS distance of
+The consequence is severe and easy to miss, because the mixtures one tests on conventionally
+all sit near the origin. Translating the same trimodal sample by $100$ and retraining, that
+architecture returns a Kolmogorov--Smirnov distance of $0.50$ on two samples out of three and
+$0.70$ on the third, against $0.03$ untranslated. A KS distance of
 $0.5$ means the network has collapsed to the constant $0.5$: it has learned nothing at all.
 
 The fix is the standardisation already written into~\eqref{eq:mixture-cdf}: the model works
@@ -924,13 +894,14 @@ eleven on the five-mode target, while choosing it too large costs a few percent.
 $J = 12$.
 
 \takeaway{A distribution function has to be non-decreasing, bounded, and to approach $0$ and
-$1$; the inherited architecture obtained the first two after the fact on a grid and could not
-obtain the third at all, because a finite sum of bounded terms cannot reach the ends of
+$1$; a multilayer perceptron with a sigmoid output obtains the first two after the fact on a
+grid and cannot obtain the third at all, because a finite sum of bounded terms cannot reach
+the ends of
 $(0,1)$. Writing the network as a convex mixture of logistic distribution functions makes all
 of them hold at every parameter value, gives the density in closed form, and coincides with
 the Parzen estimator when the number of components equals the sample size. Standardising the
-input makes the estimate equivariant, which the inherited version was not: translating the
-data by $100$ was enough to make it collapse. Twelve components are used.}
+input makes the estimate equivariant, which that design is not: translating the data by $100$
+is enough to make it collapse. Twelve components are used.}
 
 % =====================================================================================
 \section{Training}
@@ -973,8 +944,9 @@ reports it rather than assuming it.
 
 \subsection{What is no longer needed}
 
-Three mechanisms present in the earlier pipeline have no object under the architecture of
-Chapter~\ref{sec:network}, and removing them is not a simplification for its own sake.
+A design built on architecture~\eqref{eq:mlp} needs three further mechanisms to deliver a
+valid estimate. None of them has any object under the architecture of
+Chapter~\ref{sec:network}, and dropping them is not a simplification for its own sake.
 
 The \textbf{monotonicity penalty} added a term $\lambda \cdot \mathrm{mean}\,
 \mathrm{relu}(-\Fhat')$ to the loss, evaluated at $256$ equally spaced points. It is a
@@ -982,11 +954,10 @@ penalty and not a constraint: it can be made small but never zero-guaranteed, it
 only the points it looks at, and $\lambda$ trades against the fit. Under
 Theorem~\ref{thm:validity} there is nothing left for it to enforce.
 
-The \textbf{rectification} step, the running maximum followed by rescaling, was doing real
-work in the old pipeline, which is worth acknowledging: the unconstrained network does
-produce non-monotone curves. Retraining the inherited architecture with its own recipe, about
-one initialisation in four yields a curve that decreases somewhere, in the worst case over
-$6\%$ of the grid points. The step was therefore not decorative. It is simply the wrong
+The \textbf{rectification} step, the running maximum followed by rescaling, does real work,
+which is worth acknowledging: an unconstrained network genuinely produces non-monotone curves.
+Training architecture~\eqref{eq:mlp} on these labels, about one initialisation in four yields
+a curve that decreases somewhere, in the worst case over $6\%$ of the grid points. The step was therefore not decorative. It is simply the wrong
 remedy: a repair applied to the output cannot restore a property the model never had, and it
 introduces its own artefacts, since a flat stretch in the repaired curve means a density of
 exactly zero there.
@@ -1054,10 +1025,10 @@ grid, no differentiation step, and nothing to tune.
 
 \subsection{Why finite differences on a grid were a problem}
 
-It is worth being concrete about what this replaces, since the earlier arrangement also
-produced a plausible-looking density.
+The alternative, which also produces a plausible-looking density, deserves a concrete
+comparison.
 
-There, the density was obtained by evaluating the repaired curve at the nodes of a grid and
+There, the density is obtained by evaluating the repaired curve at the nodes of a grid and
 taking centred differences between neighbouring values. Three things follow from that. The
 result depends on the grid spacing, which nobody had calibrated: too coarse and narrow peaks
 are flattened, too fine and the differencing amplifies whatever wiggle the curve has. The
@@ -1066,8 +1037,8 @@ that is not a node requires interpolating, and evaluating it outside the grid is
 And the clamp discussed in Section~6.3 was applied to the result, breaking the relationship
 between the two delivered curves.
 
-None of this was visible in the reported figures, because all of them were computed on the
-same grid that produced the estimate.
+None of it is visible in a plot, because the plot is drawn on the same grid that produced the
+estimate.
 
 % =====================================================================================
 \section{Delivering an estimate without knowing the truth}
@@ -1081,10 +1052,10 @@ plot needs an interval, an integral needs limits, and any diagnostic that involv
 has to say over what. The question is where that interval comes from when the distribution is
 unknown.
 
-The earlier pipeline took it from the truth, as the interval spanned by the component means
-plus or minus five component standard deviations, and in a few scripts it was hard-coded
-outright. On the data the method is meant for there are no component means, so the interval
-has to be built from the sample. The obvious candidate is the range of the data padded by
+In a study where the distribution is known there is an obvious answer, which is to take the
+interval spanned by the component means plus or minus a few component standard deviations,
+and that is what we did while the targets were all synthetic. On the data the method is meant
+for there are no component means, so the interval has to be built from the sample. The obvious candidate is the range of the data padded by
 some multiple of the window,
 \[
 [\,\min x - k h,\ \max x + k h\,],
@@ -1181,7 +1152,7 @@ windows almost as the truth would, together with the selected window in both for
 over the domain and the number of monotonicity violations. The last two are diagnostics rather
 than results: under Theorem~\ref{thm:validity} the violations must be zero, so a non-zero
 count is a bug and not a phenomenon. The mass is \emph{reported and not imposed}, which is the
-substantive difference from the earlier pipeline. A value of $0.9998$ says something true
+substantive difference from a pipeline that rescales. A value of $0.9998$ says something true
 about the estimate and the domain; a value of exactly $1$ obtained by rescaling says nothing.
 
 A further diagnostic comes for free. Silverman's rule and the plug-in are cheap to evaluate
@@ -1211,16 +1182,18 @@ model, and a figure. Nothing in that path requires knowing where the data came f
 \label{sec:results}
 % =====================================================================================
 
-\subsection{Against the previous version of the pipeline}
+\subsection{Against a conventional design}
 
-Everything up to here argued for individual choices. What follows measures the pipeline as a
-whole, which is what would actually be run on a set of observations, against the one it
-replaces.
+Everything up to here argued for individual choices. What follows measures the procedure as a
+whole against the conventional alternative: the multilayer perceptron of Section~5.2, trained
+on the same labels, with monotonicity restored by a running maximum and the density taken as a
+finite difference. That is the design one reaches without the analysis of
+Chapters~\ref{sec:network} and~6, so it is the right thing to beat.
 
-Both are given the same samples and the same evaluation domain, built from the
-data by the rule of Section~8.1. The earlier pipeline would have taken its domain from the
-true distribution; granting it the harder version would have made the comparison meaningless
-in our favour.
+Both are given the same samples and the same evaluation domain, built from the data by the
+rule of Section~8.1. The second point is not a detail: a domain taken from the true
+distribution would have made the baseline look worse for a reason unrelated to its
+architecture, and the comparison would have been rigged in our favour.
 
 \begin{table}[H]
 \centering
@@ -1230,50 +1203,50 @@ in our favour.
 \textbf{Viol.} \\
 \midrule
 trimodal & Parzen (LSCV) & $0.0346$ & $0.00398$ & $1.000000$ & 0 \\
-         & earlier       & $0.0365$ & $\mathbf{0.00340}$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0365$ & $\mathbf{0.00340}$ & $1.000000$ & 0 \\
          & \textbf{present} & $0.0348$ & $0.00419$ & $1.000000$ & 0 \\
 \addlinespace
 symmetric bimodal & Parzen (LSCV) & $0.0393$ & $0.00304$ & $1.000000$ & 0 \\
-         & earlier       & $0.0397$ & $0.00318$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0397$ & $0.00318$ & $1.000000$ & 0 \\
          & \textbf{present} & $\mathbf{0.0390}$ & $\mathbf{0.00304}$ & $1.000000$ & 0 \\
 \addlinespace
 spike inside a broad mode & Parzen (LSCV) & $0.0331$ & $0.00771$ & $1.000000$ & 0 \\
-         & earlier       & $0.0339$ & $\mathbf{0.00620}$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0339$ & $\mathbf{0.00620}$ & $1.000000$ & 0 \\
          & \textbf{present} & $\mathbf{0.0321}$ & $0.00649$ & $0.999990$ & 0 \\
 \addlinespace
 five narrow separated modes & Parzen (LSCV) & $0.0393$ & $0.00702$ & $1.000000$ & 0 \\
-         & earlier       & $0.0396$ & $0.00667$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0396$ & $0.00667$ & $1.000000$ & 0 \\
          & \textbf{present} & $\mathbf{0.0364}$ & $\mathbf{0.00346}$ & $1.000000$ & 0 \\
 \addlinespace
 six modes at mixed scales & Parzen (LSCV) & $0.0389$ & $0.00396$ & $1.000000$ & 0 \\
-         & earlier       & $0.0592$ & $0.01026$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0592$ & $0.01026$ & $1.000000$ & 0 \\
          & \textbf{present} & $\mathbf{0.0385}$ & $\mathbf{0.00289}$ & $0.999998$ & 0 \\
 \midrule
 \textbf{all targets} & Parzen (LSCV) & $0.0370$ & $0.00514$ & $1.000000$ & 0 \\
-         & earlier       & $0.0418$ & $0.00594$ & $1.000000$ & 0 \\
+         & MLP baseline  & $0.0418$ & $0.00594$ & $1.000000$ & 0 \\
          & \textbf{present} & $\mathbf{0.0361}$ & $\mathbf{0.00402}$ & $0.999997$ & 0 \\
 \bottomrule
 \end{tabular}
 \caption{Five distributions, five samples each, $n = 500$. The last block averages over all
 of them; the worst case across targets is $0.0390$ for the present pipeline against $0.0592$
-for the earlier one on the KS distance, and $0.00649$ against $0.01026$ on the density.}
+for the baseline on the KS distance, and $0.00649$ against $0.01026$ on the density.}
 \label{tab:endtoend}
 \end{table}
 
-The present pipeline is ahead on both averages and, more usefully, on both worst cases. The
+The procedure is ahead on both averages and, more usefully, on both worst cases. The
 margin is concentrated where it should be: on the six-mode target at mixed scales, which is
 the closest thing in this set to the strongly multimodal case, it improves the KS distance by
 a factor of $1.5$ and the density error by $3.5$. On the easier targets the difference is
-within the noise, and on the trimodal the earlier pipeline is slightly better on the density,
-which is worth saying plainly.
+within the noise, and on the trimodal the baseline is slightly better on the density, which
+is worth saying plainly.
 
-The mass column is the most informative one, and it repays a second look. The earlier pipeline
-reports exactly $1.000000$ on every row, which is not a result: it is the rescaling step
-doing what it was written to do. The present one reports $0.999990$ and $0.999998$ on two
-rows, because that is the mass it actually places on a finite domain, and the shortfall of
-about $10^{-5}$ is the tail beyond the interval. That quantity was not absent from the earlier
-figures; it was redistributed into the interior by the rescaling, where it became an error
-that nothing reported.
+The mass column is the most informative one, and it repays a second look. The baseline reports
+exactly $1.000000$ on every row, which is not a result: it is the rescaling step doing what it
+was written to do. The procedure reports $0.999990$ and $0.999998$ on two rows, because that
+is the mass it actually places on a finite domain, and the shortfall of about $10^{-5}$ is the
+tail beyond the interval. That quantity is not absent from the baseline's figures; it is
+redistributed into the interior by the rescaling, where it becomes an error that nothing
+reports.
 
 Monotonicity violations are zero everywhere for both, but for different reasons: in one case
 because a repair step removed them after the fact, in the other because
@@ -1471,11 +1444,11 @@ mixture together with its derivative in closed form. It reports the window in th
 $h_n = h_1/\sqrt n$ that the schedule requires, along with diagnostics that need no knowledge
 of the distribution.
 
-Three decisions characterise it, and each replaces something that looked reasonable.
+Three decisions characterise it, and in each case the obvious alternative is where we
+started.
 
 The window is chosen from the data rather than from a rule. We spent a good deal of effort
-looking for a better constant than $1.5\,\shat$ before concluding that the search was
-misconceived: the optimal constant ranges over a factor of twelve across a standard benchmark,
+looking for a better constant before concluding that the search itself was misconceived: the optimal constant ranges over a factor of twelve across a standard benchmark,
 and calibrating it more carefully makes the rule worse. Cross-validation reaches an efficiency
 of $1.26$ on average and $1.59$ in the worst case, where the rule it replaces reaches $2.27$
 and $9.38$.
@@ -1494,15 +1467,14 @@ taken from the true distribution, and it is what led us to measure which sample-
 indicators are informative, and to discover that the most natural one is anticorrelated with
 the error it appears to certify.
 
-On the five main targets the resulting pipeline is ahead of the one it replaces on both
+On the five main targets the resulting procedure is ahead of the conventional design on both
 measures and both worst cases, and ahead of the Parzen estimator it learns from on the
 density. Its limitation is stated in Chapter~\ref{sec:limits}: distributions with sharp edges
 are rounded off, and more capacity does not fix that without costing accuracy on the
 multimodal targets the method is meant for.
 
 Two directions remain open. The interactive tool that accompanies the project still runs the
-earlier pipeline and should be brought into line with the present one. And the whole study is
-univariate; the same construction extends to several dimensions, since a convex combination of
+conventional design and should be brought into line. And the whole study is univariate; the same construction extends to several dimensions, since a convex combination of
 products of logistic distribution functions is again a valid joint distribution function, but
 we have not tested it.
 
@@ -1663,7 +1635,7 @@ Ch.~2, generator checks and seeding & \texttt{sampling\_quality.py} \\
 Ch.~4, window selectors & \texttt{bandwidth\_study.py} with \texttt{bandwidth\_run.py} \\
 Ch.~4, schedule exponent & \texttt{schedule\_exponent.py} \\
 Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\
-Ch.~5--6, inherited pipeline & \texttt{crosscheck\_real\_code.py} \\
+Ch.~5--6, the MLP baseline & \texttt{crosscheck\_real\_code.py} \\
 Ch.~8, domain and diagnostics & \texttt{pipeline\_evidence.py}, \texttt{grid\_rule.py} \\
 Ch.~9, end-to-end comparison & \texttt{endtoend\_compare.py} \\
 Ch.~9, figures & \texttt{scripts/report\_figures.py} \\
