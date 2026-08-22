@@ -398,3 +398,62 @@ Il refactor è concluso quando:
 4. `grep -r "Mixture" src/parzen_cdf/` non compare nel percorso di stima, solo in `data.py` e
    `evaluation.py`;
 5. gli script esistenti continuano a funzionare come prima.
+
+---
+
+## 9. Verifica finale: il percorso consegnato contro quello che sostituisce
+
+Le sezioni precedenti giustificano le singole decisioni. Questa misura la **pipeline
+completa**, cioè ciò che il docente eseguirebbe davvero, contro quella che sostituisce.
+
+Banco: `temp_analysis/endtoend_compare.py` → `endtoend_compare.txt`. n = 500, 5 semi,
+5 distribuzioni. Per non avvantaggiare il percorso nuovo, **anche quello vecchio riceve il
+dominio costruito dai campioni**: nel repo lo prenderebbe dalla distribuzione vera.
+
+| caso | percorso | KS | ISE pdf | massa | violazioni |
+|---|---|---|---|---|---|
+| trimodale | Parzen (LSCV) | 0.0346 | 0.00398 | 1.000000 | 0 |
+| | vecchio | 0.0365 | **0.00340** | 1.000000 | 0 |
+| | **nuovo** | 0.0348 | 0.00419 | 1.000000 | 0 |
+| bimodale simmetrica | Parzen | 0.0393 | 0.00304 | 1.000000 | 0 |
+| | vecchio | 0.0397 | 0.00318 | 1.000000 | 0 |
+| | **nuovo** | **0.0390** | **0.00304** | 1.000000 | 0 |
+| spike in broad | Parzen | 0.0331 | 0.00771 | 1.000000 | 0 |
+| | vecchio | 0.0339 | **0.00620** | 1.000000 | 0 |
+| | **nuovo** | **0.0321** | 0.00649 | 0.999990 | 0 |
+| 5 mode strette | Parzen | 0.0393 | 0.00702 | 1.000000 | 0 |
+| | vecchio | 0.0396 | 0.00667 | 1.000000 | 0 |
+| | **nuovo** | **0.0364** | **0.00346** | 1.000000 | 0 |
+| 6 mode scale miste | Parzen | 0.0389 | 0.00396 | 1.000000 | 0 |
+| | vecchio | 0.0592 | 0.01026 | 1.000000 | 0 |
+| | **nuovo** | **0.0385** | **0.00289** | 0.999998 | 0 |
+
+**Sintesi su tutti i casi:**
+
+| percorso | KS medio | KS peggiore | ISE media | ISE peggiore | massa media |
+|---|---|---|---|---|---|
+| Parzen (LSCV) | 0.0370 | 0.0393 | 0.00514 | 0.00771 | 1.000000 |
+| vecchio | 0.0418 | 0.0592 | 0.00594 | 0.01026 | 1.000000 |
+| **nuovo** | **0.0361** | **0.0390** | **0.00402** | **0.00649** | 0.999997 |
+
+**Quattro letture, l'ultima delle quali è la più importante.**
+
+1. **Il percorso nuovo vince su tutte le aggregate**, e vince soprattutto nel caso peggiore:
+   KS 0.0390 contro 0.0592, ISE 0.00649 contro 0.01026. È la metrica che conta, perché il
+   docente sceglierà **una** distribuzione e non una media.
+2. **Il guadagno si concentra dove serve.** Sul caso a 6 mode a scale miste — il più vicino a
+   «fortemente multimodale» — il KS migliora di 1.5× e l'ISE di 3.5×. Sui casi facili la
+   differenza è nel rumore, e sulla trimodale il percorso vecchio ha un ISE leggermente
+   migliore (0.00340 contro 0.00419): va detto.
+3. **Il percorso nuovo batte anche il Parzen da cui impara**, su entrambe le metriche
+   aggregate. Non era scontato: nella rivalidazione a J = 8 perdeva su un caso su tre.
+4. **La colonna della massa dice la cosa più interessante.** Il percorso vecchio segna
+   1.000000 su ogni riga perché la massa gli viene **imposta** dalla riscalatura sulla
+   griglia; il nuovo segna 0.999990 e 0.999998 su due casi perché quella è la massa che
+   **misura** sul dominio finito. Lo scarto di 1e-05 non è un difetto del nuovo: è la
+   quantità che il vecchio nascondeva ridistribuendola all'interno del dominio (P-D2). Un
+   1.000000 ottenuto per costruzione non è un risultato, è una normalizzazione.
+
+**Zero violazioni di monotonia in tutte le 75 esecuzioni**, per entrambi i percorsi — ma per
+ragioni diverse: il vecchio perché la rettifica le rimuove a posteriori, il nuovo perché non
+possono esistere (T2).

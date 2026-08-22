@@ -1,0 +1,33 @@
+====================================================================================================
+CONFRONTO END-TO-END  (n = 500, 5 semi)
+  KS e ISE contro la verita'; massa e violazioni sono diagnostiche della validita'.
+  Il dominio del percorso nuovo viene dai soli campioni; quello del vecchio anche,
+  per non avvantaggiarlo: nel repo verrebbe dalla distribuzione vera.
+
+  caso                   percorso          KS    ISE pdf      massa   viol.
+  trimodale              Parzen        0.0346    0.00398   1.000000     0.0
+                         vecchio       0.0365    0.00340   1.000000     0.0
+                         NUOVO         0.0348    0.00419   1.000000     0.0
+
+  bimodale simmetrica    Parzen        0.0393    0.00304   1.000000     0.0
+                         vecchio       0.0397    0.00318   1.000000     0.0
+                         NUOVO         0.0390    0.00304   1.000000     0.0
+
+  spike in broad         Parzen        0.0331    0.00771   1.000000     0.0
+                         vecchio       0.0339    0.00620   1.000000     0.0
+                         NUOVO         0.0321    0.00649   0.999990     0.0
+
+  5 mode strette         Parzen        0.0393    0.00702   1.000000     0.0
+                         vecchio       0.0396    0.00667   1.000000     0.0
+                         NUOVO         0.0364    0.00346   1.000000     0.0
+
+  6 mode scale miste     Parzen        0.0389    0.00396   1.000000     0.0
+                         vecchio       0.0592    0.01026   1.000000     0.0
+                         NUOVO         0.0385    0.00289   0.999998     0.0
+
+====================================================================================================
+SINTESI su tutti i casi
+  percorso     KS medio  KS peggiore   ISE media  ISE peggiore  massa media  violazioni
+  Parzen         0.0370       0.0393     0.00514       0.00771     1.000000         0.0
+  vecchio        0.0418       0.0592     0.00594       0.01026     1.000000         0.0
+  NUOVO          0.0361       0.0390     0.00402       0.00649     0.999997         0.0
