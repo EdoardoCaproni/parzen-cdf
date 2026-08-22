@@ -1150,8 +1150,8 @@ indicator orders the windows the way the truth does. Rank correlation answers th
 \centering
 \begin{tabular}{@{}lrr@{}}
 \toprule
-\textbf{Indicator} & \textbf{Rank correlation with the true error} &
-\textbf{Cost if used to choose $h$} \\
+\textbf{Indicator} & \textbf{Rank corr.\ with true error} &
+\textbf{Cost if used to pick $h$} \\
 \midrule
 LSCV score & $+0.94$ & $1.21$ \\
 leave-one-out log-likelihood & $+0.86$ & $1.52$ \\
@@ -1212,13 +1212,140 @@ model, and a figure. Nothing in that path requires knowing where the data came f
 % =====================================================================================
 
 \subsection{Against the previous version of the pipeline}
-% TODO
+
+Everything up to here argued for individual choices. What follows measures the pipeline as a
+whole, which is what would actually be run on a set of observations, against the one it
+replaces.
+
+Both are given the same samples and, importantly, the same evaluation domain, built from the
+data by the rule of Section~8.1. The earlier pipeline would have taken its domain from the
+true distribution; granting it the harder version would have made the comparison meaningless
+in our favour.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}llrrrr@{}}
+\toprule
+\textbf{Target} & \textbf{Pipeline} & \textbf{KS} & \textbf{ISE} & \textbf{Mass} &
+\textbf{Viol.} \\
+\midrule
+trimodal & Parzen (LSCV) & $0.0346$ & $0.00398$ & $1.000000$ & 0 \\
+         & earlier       & $0.0365$ & $\mathbf{0.00340}$ & $1.000000$ & 0 \\
+         & \textbf{present} & $0.0348$ & $0.00419$ & $1.000000$ & 0 \\
+\addlinespace
+symmetric bimodal & Parzen (LSCV) & $0.0393$ & $0.00304$ & $1.000000$ & 0 \\
+         & earlier       & $0.0397$ & $0.00318$ & $1.000000$ & 0 \\
+         & \textbf{present} & $\mathbf{0.0390}$ & $\mathbf{0.00304}$ & $1.000000$ & 0 \\
+\addlinespace
+spike inside a broad mode & Parzen (LSCV) & $0.0331$ & $0.00771$ & $1.000000$ & 0 \\
+         & earlier       & $0.0339$ & $\mathbf{0.00620}$ & $1.000000$ & 0 \\
+         & \textbf{present} & $\mathbf{0.0321}$ & $0.00649$ & $0.999990$ & 0 \\
+\addlinespace
+five narrow separated modes & Parzen (LSCV) & $0.0393$ & $0.00702$ & $1.000000$ & 0 \\
+         & earlier       & $0.0396$ & $0.00667$ & $1.000000$ & 0 \\
+         & \textbf{present} & $\mathbf{0.0364}$ & $\mathbf{0.00346}$ & $1.000000$ & 0 \\
+\addlinespace
+six modes at mixed scales & Parzen (LSCV) & $0.0389$ & $0.00396$ & $1.000000$ & 0 \\
+         & earlier       & $0.0592$ & $0.01026$ & $1.000000$ & 0 \\
+         & \textbf{present} & $\mathbf{0.0385}$ & $\mathbf{0.00289}$ & $0.999998$ & 0 \\
+\midrule
+\textbf{all targets} & Parzen (LSCV) & $0.0370$ & $0.00514$ & $1.000000$ & 0 \\
+         & earlier       & $0.0418$ & $0.00594$ & $1.000000$ & 0 \\
+         & \textbf{present} & $\mathbf{0.0361}$ & $\mathbf{0.00402}$ & $0.999997$ & 0 \\
+\bottomrule
+\end{tabular}
+\caption{Five distributions, five samples each, $n = 500$. The last block averages over all
+of them; the worst case across targets is $0.0390$ for the present pipeline against $0.0592$
+for the earlier one on the KS distance, and $0.00649$ against $0.01026$ on the density.}
+\label{tab:endtoend}
+\end{table}
+
+The present pipeline is ahead on both averages and, more usefully, on both worst cases. The
+margin is concentrated where it should be: on the six-mode target at mixed scales, which is
+the closest thing in this set to the strongly multimodal case, it improves the KS distance by
+a factor of $1.5$ and the density error by $3.5$. On the easier targets the difference is
+within the noise, and on the trimodal the earlier pipeline is slightly better on the density,
+which is worth saying plainly.
+
+The mass column is the most informative one, and it repays a second look. The earlier pipeline
+reports exactly $1.000000$ on every row, which is not a result: it is the rescaling step
+doing what it was written to do. The present one reports $0.999990$ and $0.999998$ on two
+rows, because that is the mass it actually places on a finite domain, and the shortfall of
+about $10^{-5}$ is the tail beyond the interval. That quantity was not absent from the earlier
+figures; it was redistributed into the interior by the rescaling, where it became an error
+that nothing reported.
+
+Monotonicity violations are zero everywhere for both, but for different reasons: in one case
+because a repair step removed them after the fact, in the other because
+Theorem~\ref{thm:validity} does not allow them to exist.
 
 \subsection{Against the Parzen estimator}
-% TODO
+
+The comparison that matters more for the assignment is against the estimator the network
+learns from, since a neural stage that does not improve on its teacher would be hard to
+justify.
+
+Averaged over the five targets, the network is ahead on both measures: $0.0361$ against
+$0.0370$ on the KS distance and $0.00402$ against $0.00514$ on the density. The gain is on
+the density, which is where the mechanism predicts it: the labels are noisy by design, and
+limited capacity averages that noise out, so the network ends up closer to the underlying
+curve than the labels it was shown. On the distribution function the two are nearly tied,
+which is also expected, since integration already suppresses the fluctuation the network is
+removing.
+
+The advantage is real but should not be overstated, and it is not uniform. On the resilience
+study of Chapter~\ref{sec:limits} there are targets where the network loses to the estimator,
+and one where it loses by a factor of two. What the neural stage reliably provides is not
+accuracy but form: a function rather than a table, valid by construction, with a density in
+closed form and a cost of evaluation independent of $n$.
 
 \subsection{What the figures show}
-% TODO
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{report3_estimate.png}
+\caption{The delivered output on five hundred points from the reference trimodal mixture.
+Tick marks along the axis are the observations. On the right, the empirical distribution
+function is drawn underneath and is almost indistinguishable from the other two at this
+scale.}
+\label{fig:estimate}
+\end{figure}
+
+Figure~\ref{fig:estimate} is the output of the procedure on a single sample, produced by the
+same function a user would call. All three modes are recovered, including the narrow one on
+the right, and the tails settle onto $0$ and $1$ rather than approaching them.
+
+Two artefacts are visible and worth naming rather than glossing over. The central mode is
+split into a double bump that the truth does not have, and the right-hand peak overshoots by
+about a quarter. Both come from the same source: the labels are built with a deliberately
+narrow window, so they carry the sampling fluctuation of this particular sample, and twelve
+components are enough to follow part of it. Widening the label window would smooth the bump
+away and flatten the genuine peaks with it. This is the trade discussed in Section~6.2, made
+visible.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{report3_window.png}
+\caption{Density error against window width, on two targets, with the choices made by three
+selectors marked. Both axes are logarithmic. The vertical black line is the best window
+achievable on that sample.}
+\label{fig:window}
+\end{figure}
+
+Figure~\ref{fig:window} is the argument of Chapter~\ref{sec:window} in one picture. The error
+curve is markedly asymmetric: to the left of the minimum it rises gently, to the right it
+climbs by more than an order of magnitude. Underestimating the window is cheap and
+overestimating it is not, which is why a rule calibrated on smooth targets is dangerous on
+structured ones.
+
+The marked positions show what that costs in practice. On the trimodal target, on the left,
+all three selectors land in the neighbourhood of the minimum, and the differences between
+them barely matter. On the five separated modes, on the right, they separate: cross-validation
+stays close to the optimum, the $\sigma$-rule sits an order of magnitude up the steep branch,
+and Silverman's rule lands where the error is roughly thirty times the achievable one. The
+mechanism is the one described earlier: the sample standard deviation is inflated by the
+distance between the modes, so any rule proportional to it oversmooths exactly when the target
+has separated structure.
 
 % =====================================================================================
 \section{Scope and limits}
