@@ -1266,12 +1266,10 @@ learns from, since a neural stage that does not improve on its teacher would be 
 justify.
 
 Averaged over the five targets, the network is ahead on both measures: $0.0361$ against
-$0.0370$ on the KS distance and $0.00402$ against $0.00514$ on the density. The gain is on
-the density, which is where the mechanism predicts it: the labels are noisy by design, and
-limited capacity averages that noise out, so the network ends up closer to the underlying
-curve than the labels it was shown. On the distribution function the two are nearly tied,
-which is also expected, since integration already suppresses the fluctuation the network is
-removing.
+$0.0370$ on the KS distance and $0.00402$ against $0.00514$ on the density. The gain falls on
+the density, which is where the mechanism of Section~6.2 predicts it. On the distribution
+function the two are nearly tied, which is equally expected, since integration already
+suppresses most of the fluctuation the network is there to remove.
 
 The advantage is real but should not be overstated, and it is not uniform. On the resilience
 study of Chapter~\ref{sec:limits} there are targets where the network loses to the estimator,
@@ -1417,9 +1415,8 @@ seems more useful to list them than to leave them implicit.
 
 We do not claim that the network is more accurate than the Parzen estimator in general. It is
 ahead on average over the five main targets, and Table~\ref{tab:resilience} contains targets
-where it is behind. What it provides reliably is form rather than accuracy: a function instead
-of a table, valid by construction, with a closed-form density and an evaluation cost
-independent of the sample size.
+where it is behind, one of them by a factor of two. What it delivers reliably is the form
+described in Section~9.2, not a uniform gain in accuracy.
 
 We do not claim that cross-validation is the best window selector in all circumstances. On
 smooth unimodal targets the plug-in and Scott's rule beat it. The recommendation is
@@ -1453,39 +1450,31 @@ mixture together with its derivative in closed form. It reports the window in th
 $h_n = h_1/\sqrt n$ that the schedule requires, along with diagnostics that need no knowledge
 of the distribution.
 
-Three decisions characterise it, and in each case the obvious alternative is where we
-started.
+Looking back at the three decisions that shaped it, what stands out is that none was reached
+by improving the obvious answer. In each case the obvious answer had to be given up.
 
-The window is chosen from the data rather than from a rule. We spent a good deal of effort
-looking for a better constant before concluding that the search itself was misconceived: the optimal constant ranges over a factor of twelve across a standard benchmark,
-and calibrating it more carefully makes the rule worse. Cross-validation reaches an efficiency
-of $1.26$ on average and $1.59$ in the worst case, where the rule it replaces reaches $2.27$
-and $9.38$.
+The search for a better constant than $1.5\,\shat$ took more effort than any other part of
+this work, and it ended when we measured that no constant exists. That is a different kind of
+outcome from a negative result: it says the question was wrong, not that the answer was hard
+to find. The same shape recurs in the other two. Monotonicity was not obtained by tuning a
+penalty until violations became rare, but by removing the possibility of violation; unit mass
+was not obtained by normalising, but by using a form whose mass is one before anything has
+been fitted.
 
-The shape constraints live inside the model rather than in a repair step. Writing the network
-as a convex mixture of logistic distribution functions makes monotonicity, the range, the
-limits at infinity, the positivity of the density and its unit mass hold at every parameter
-value, which removes the rectification, the penalty and the clamp at once. The clamp in
-particular was breaking the identity between the two delivered curves, which is a defect no
-amount of tuning would have surfaced.
+The third decision had a consequence we did not anticipate. Requiring every reported quantity
+to be computable from the sample alone was adopted for a practical reason, since the method is
+meant for data whose distribution is unknown, and it turned out to be the most productive
+constraint in the project. It is what exposed the evaluation domain being taken from the true
+distribution, a dependency that had stayed invisible precisely because every figure was drawn
+on that same domain. And it is what forced the question of which sample-based indicators are
+informative, instead of reporting whichever ones happened to be available, which is how we
+found that the most natural of them points the wrong way.
 
-The estimate is delivered as a pair of functions with diagnostics computable from the sample
-alone. That constraint turned out to be the most productive one in the whole project, because
-it forces every step to be honest about what it knows. It is what exposed the domain being
-taken from the true distribution, and it is what led us to measure which sample-based
-indicators are informative, and to discover that the most natural one is anticorrelated with
-the error it appears to certify.
-
-On the five main targets the resulting procedure is ahead of the conventional design on both
-measures and both worst cases, and ahead of the Parzen estimator it learns from on the
-density. Its limitation is stated in Chapter~\ref{sec:limits}: distributions with sharp edges
-are rounded off, and more capacity does not fix that without costing accuracy on the
-multimodal targets the method is meant for.
-
-Two directions remain open. The interactive tool that accompanies the project still runs the
-conventional design and should be brought into line. And the whole study is univariate; the same construction extends to several dimensions, since a convex combination of
-products of logistic distribution functions is again a valid joint distribution function, but
-we have not tested it.
+Two things would come next. The interactive tool that accompanies the project still implements
+the conventional design and should be brought into line with what is described here. And the
+whole study is univariate: the construction extends to several dimensions, since a convex
+combination of products of logistic distribution functions is again a valid joint distribution
+function, but how many components that would need is an open question.
 
 % =====================================================================================
 \appendix
@@ -1636,13 +1625,14 @@ suite runs with \texttt{pytest}.
 
 \begin{table}[H]
 \centering
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{0.58\linewidth}@{}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.36\linewidth}%
+                  >{\raggedright\arraybackslash}p{0.56\linewidth}@{}}
 \toprule
 \textbf{Where} & \textbf{Script} \\
 \midrule
 Ch.~2, generator checks and seeding & \texttt{sampling\_quality.py} \\
 Ch.~3 and~5, figures quoted in the text & \texttt{report\_numbers.py} \\
-Ch.~4, window selectors & \texttt{bandwidth\_study.py} with \texttt{bandwidth\_run.py} \\
+Ch.~4, window selectors & \texttt{bandwidth\_study.py}, \texttt{bandwidth\_run.py} \\
 Ch.~4, schedule exponent & \texttt{schedule\_exponent.py} \\
 Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\
 Ch.~5--6, the MLP baseline & \texttt{crosscheck\_real\_code.py} \\
@@ -1666,11 +1656,8 @@ estimator itself, and to within a few percent on the cross-validated window, whe
 different candidate grids. Conversely, everything concerning the behaviour of the network was
 measured with the library itself, since that is what is being described.
 
-The pipeline can be run on any sample with
-\begin{quote}
-\texttt{python -m parzen\_cdf.run --samples data.csv --out results/}
-\end{quote}
-and the test suite with \texttt{pytest}. The tests include the properties asserted in
+The pipeline is run on a sample with the command given in Section~8.3, and the test suite
+with \texttt{pytest}. The tests include the properties asserted in
 Chapter~\ref{sec:network}: monotonicity and the exact limits under randomly perturbed
 parameters, agreement between the closed-form density and a numerical derivative of the
 distribution function, equivariance under translation and rescaling of the data, and the
