@@ -597,7 +597,7 @@ reputation suggests. Silverman, Scott and the plug-in are built on the assumptio
 target resembles a normal density, and they oversmooth multimodal shapes systematically; on
 the mixture of five separated modes their efficiencies are $21$, $23$ and $19$. They are the
 best selectors on the two smooth unimodal densities of the benchmark, where LSCV sits at
-$1.5$ to $1.6$ and they sit at $1.2$ to $1.4$. If the target were known to be smooth they
+$1.5$ to $1.6$ and they sit between $1.1$ and $1.4$. If the target were known to be smooth they
 would be the right choice, which is not our situation.
 
 Repeating the study at $n = 1000$ leaves the ranking unchanged and sharpens two features.
@@ -856,11 +856,18 @@ evaluated at $\alpha t + \beta$ equals the estimate computed on $x$ evaluated at
 every $\alpha > 0$ and $\beta$.
 \end{theorem}
 
-In exact arithmetic the two estimates coincide; in floating point they agree to about
-$10^{-3}$ after six thousand optimiser steps, the residual being the amplification of a
-rounding difference of order $10^{-15}$ in the computation of $s$. Measured across shifts up
-to $1000$ and rescalings up to $50$, the KS distance stays between $0.0259$ and $0.0265$
-where the unstandardised version collapses to $0.50$.
+In exact arithmetic the two estimates coincide. In single precision they do not quite, and
+the reason is worth locating precisely, because it is not where one might guess: it is the
+subtraction $x - \mu$ itself. As the sample moves away from the origin the two terms become
+close in magnitude and their difference loses relative precision, so the standardised sample
+is reproduced to $2 \times 10^{-7}$ at the origin, $1.5 \times 10^{-5}$ at an offset of a
+thousand, and $2.4 \times 10^{-4}$ at ten thousand.
+
+What survives of that in the delivered estimate is smaller still. Measured on three samples,
+the Kolmogorov--Smirnov distance changes by at most $2 \times 10^{-4}$ across a translation of
+ten thousand and a rescaling by fifty, against a collapse to $0.50$ without standardisation.
+The practical limit is therefore set by single-precision arithmetic rather than by the
+construction, and it sits three orders of magnitude below the estimation error itself.
 
 \subsection{How many components}
 
@@ -875,11 +882,11 @@ extra freedom is spent fitting the noise in the labels.
 \toprule
 \textbf{Target} & $J = 4$ & $J = 6$ & $J = 8$ & $J = 12$ & $J = 24$ \\
 \midrule
-trimodal & $\mathbf{0.0026}$ & $0.0029$ & $0.0034$ & $0.0044$ & $0.0050$ \\
+trimodal & $\mathbf{0.0027}$ & $0.0029$ & $0.0034$ & $0.0044$ & $0.0049$ \\
 five narrow separated modes & $0.0536$ & $0.0047$ & $0.0047$ & $\mathbf{0.0047}$ & $0.0047$ \\
 six modes at mixed scales & $0.0343$ & $0.0183$ & $0.0049$ & $\mathbf{0.0025}$ & $0.0026$ \\
 \midrule
-\textbf{worst case} & $0.0536$ & $0.0183$ & $0.0049$ & $\mathbf{0.0047}$ & $0.0050$ \\
+\textbf{worst case} & $0.0536$ & $0.0183$ & $0.0049$ & $\mathbf{0.0047}$ & $0.0049$ \\
 \bottomrule
 \end{tabular}
 \caption{Integrated squared error on the density at $n = 500$, averaged over three samples.}
@@ -1634,6 +1641,7 @@ suite runs with \texttt{pytest}.
 \textbf{Where} & \textbf{Script} \\
 \midrule
 Ch.~2, generator checks and seeding & \texttt{sampling\_quality.py} \\
+Ch.~3 and~5, figures quoted in the text & \texttt{report\_numbers.py} \\
 Ch.~4, window selectors & \texttt{bandwidth\_study.py} with \texttt{bandwidth\_run.py} \\
 Ch.~4, schedule exponent & \texttt{schedule\_exponent.py} \\
 Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\

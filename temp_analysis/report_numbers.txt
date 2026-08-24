@@ -1,0 +1,45 @@
+========================================================================================
+CAP. 3  Il nucleo logistico e la sua primitiva
+  max|d(sigmoide)/du - densita' del nucleo| = 1.34e-08
+
+  deviazione standard dei nuclei disponibili
+    logistic       1.8138
+    gaussian       1.0000
+    box            0.5774
+    epanechnikov   0.4472
+    triangular     0.4082
+  fattore di correzione logistico/gaussiano: 1.8138
+
+  pavimento statistico E[KS] della CDF empirica
+    sqrt(pi/2)*ln2 = 0.868731
+    a n = 500      = 0.0389
+
+========================================================================================
+CAP. 3  Il costo di non correggere Silverman per il nucleo logistico
+        (trimodale, n = 500, media su 10 semi)
+  silverman    KS 0.0628   ISE 0.0334
+  corretto     KS 0.0449   ISE 0.0154
+
+========================================================================================
+CAP. 5  Monotonia sotto parametri casuali estremi
+        1000 estrazioni, 5000 punti, tolleranza 1e-6 (float32)
+  MLP, pesi liberi       non monotone: 900/1000
+  MLP, pesi positivi     non monotone: 0/1000
+  mistura, J = 12        non monotone: 0/1000
+
+========================================================================================
+CAP. 5  Equivarianza: il limite e' la precisione della standardizzazione
+        La sottrazione (x - mu) in float32 perde precisione relativa al crescere
+        dell'offset, perche' i due termini diventano di grandezza simile.
+  offset      0: errore su z = 1.9e-07
+  offset    100: errore su z = 1.9e-06
+  offset   1000: errore su z = 1.5e-05
+  offset  10000: errore su z = 2.4e-04
+
+  Effetto sulla stima consegnata (KS contro la verita', n = 500)
+          trasformazione    seme 0    seme 1    seme 2
+                 nessuna    0.0483   0.0330   0.0169
+        traslazione +100    0.0481   0.0333   0.0169
+       traslazione +1000    0.0481   0.0331   0.0169
+               scala x50    0.0482   0.0331   0.0169
+      traslazione +10000    0.0481   0.0335   0.0170
