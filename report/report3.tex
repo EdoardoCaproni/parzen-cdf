@@ -111,6 +111,53 @@ The pipeline takes a vector of numbers and returns:
         write it, on data we have never seen.
 \end{itemize}
 
+The settings that define it are collected in Table~\ref{tab:setup}, each with the chapter
+that argues for it. They are the defaults of the delivered entry point, so a run that
+specifies nothing uses exactly this configuration.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{0.26\linewidth}%
+                  >{\raggedright\arraybackslash}p{0.52\linewidth}l@{}}
+\toprule
+\textbf{Stage} & \textbf{Setting} & \textbf{Where} \\
+\midrule
+Window &
+  Least-squares cross-validation, reported as $\hhat_1 = \hhat\sqrt n$ &
+  \S\ref{sec:window} \\
+Labels &
+  Leave-one-out Parzen distribution function at the sample points, computed with half the
+  selected window &
+  \S\ref{sec:training} \\
+Estimator &
+  Convex mixture of twelve logistic distribution functions, on a standardised input &
+  \S\ref{sec:network} \\
+Initialisation &
+  Component centres at the sample quantiles, equal weights; consumes no randomness &
+  \S\ref{sec:reproducibility} \\
+Optimiser &
+  Adam, step $0.03$, $6000$ full-batch steps, squared error against the labels &
+  \S\ref{sec:training} \\
+Density &
+  Derivative of the mixture in closed form &
+  \S\ref{sec:density} \\
+Domain &
+  $[\min x - 3\shat,\ \max x + 3\shat]$, for drawing and integrating only &
+  \S\ref{sec:delivery} \\
+Diagnostics &
+  LSCV score, leave-one-out log-likelihood, integrated mass &
+  \S\ref{sec:delivery} \\
+Deliberately absent &
+  Rectification, monotonicity penalty, density clamp, and any comparison against the
+  empirical distribution function &
+  \S6.3, \S\ref{sec:delivery} \\
+\bottomrule
+\end{tabular}
+\caption{The delivered configuration. Appendix~\ref{app:decisions} gives the evidence behind
+each choice.}
+\label{tab:setup}
+\end{table}
+
 Proofs are collected in Appendix~\ref{app:proofs}, and Appendix~\ref{app:repro} lists the
 script that reproduces each measurement reported here.
 
@@ -911,6 +958,7 @@ is enough to make it collapse. Twelve components are used.}
 
 % =====================================================================================
 \section{Training}
+\label{sec:training}
 % =====================================================================================
 
 \subsection{The labels: the Parzen Neural Network recipe}
@@ -1012,6 +1060,7 @@ randomness, so the fitted model is a deterministic function of the sample.}
 
 % =====================================================================================
 \section{From the distribution function to the density}
+\label{sec:density}
 % =====================================================================================
 
 \subsection{The closed-form derivative}
@@ -1470,11 +1519,12 @@ on that same domain. And it is what forced the question of which sample-based in
 informative, instead of reporting whichever ones happened to be available, which is how we
 found that the most natural of them points the wrong way.
 
-Two things would come next. The interactive tool that accompanies the project still implements
-the conventional design and should be brought into line with what is described here. And the
-whole study is univariate: the construction extends to several dimensions, since a convex
-combination of products of logistic distribution functions is again a valid joint distribution
-function, but how many components that would need is an open question.
+What comes next is a question of dimension. The whole study is univariate, and the
+construction extends to several dimensions, since a convex combination of products of logistic
+distribution functions is again a valid joint distribution function; how many components that
+would need is open. The interactive tool that accompanies the project implements the design
+described here, with every choice above exposed as a control, so that taking the rejected road
+and watching it fail is something a reader can do rather than take on trust.
 
 % =====================================================================================
 \appendix
@@ -1666,6 +1716,7 @@ distributions.
 
 % =====================================================================================
 \section{Decision log}
+\label{app:decisions}
 % =====================================================================================
 
 A compact summary of the choices that define the procedure, with the evidence behind each.
