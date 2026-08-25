@@ -15,7 +15,7 @@ either implements it or is working material that led to it.
 
 ## Start here
 
-**1. Read the report.** `report/report3.pdf`, 29 pages. One chapter per stage of the pipeline,
+**1. Read the report.** `report/report3.pdf`, 30 pages. One chapter per stage of the pipeline,
 in the order the data flows through them. Table 1, on page 4, is the delivered configuration at
 a glance; Appendix C gives the evidence behind each choice.
 
@@ -39,10 +39,24 @@ a Parzen window, train the network on those labels. See `app/README.md`.
 **3. Run it on data.** The entry point takes a file of numbers and returns an estimate.
 
 ```bash
-python -m parzen_cdf.run --samples data.csv --out results/
+python -m parzen_cdf.run --samples examples/campione.csv --out risultati/
 ```
 
-`data.csv` is one number per line. No distribution, no support, no truth.
+`examples/campione.csv` is 500 observations from a four-mode mixture, one number per line,
+with nothing recording what generated them. Your own file works the same way.
+
+A file that can be read in more than one way is refused rather than guessed at, because both
+readings produce numbers and only one of them is your data. `examples/campione_excel_italiano.csv`
+is the same 500 values as a spreadsheet with Italian settings writes them, and shows what that
+looks like:
+
+```bash
+python -m parzen_cdf.run --samples examples/campione_excel_italiano.csv --out risultati/
+# stops and asks: is "1,5" one number, or two columns?
+
+python -m parzen_cdf.run --samples examples/campione_excel_italiano.csv --out risultati/ --decimal comma
+# same 500 values as the other file
+```
 
 In Python:
 
@@ -58,7 +72,7 @@ est.diagnostics()                  # what can be checked without knowing the ans
 **4. Check it still works.**
 
 ```bash
-pytest -q                          # 101 tests, about 90 seconds
+pytest -q                          # library and app, about three minutes
 ```
 
 ---
@@ -74,6 +88,7 @@ pytest -q                          # 101 tests, about 90 seconds
 | `docs/` | Working record: the studies, the redesign documents, the decision register. |
 | `temp_analysis/` | The scripts behind the measurements. Appendix B of the report maps each number to the script that produced it. |
 | `scripts/` | Figure generation for the report. |
+| `examples/` | Two sample files to run the pipeline on, and what they are for. |
 
 ### On `docs/` and `temp_analysis/`
 

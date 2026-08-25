@@ -10,8 +10,22 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Edoardo Caproni", email = "edoardo.caproni@student.unisi.it" }]
 
-# Runtime dependencies are tracked in requirements.txt for transparency during development.
-dependencies = []
+# Cio' che serve per produrre una stima. Gli intervalli sono larghi perche' la libreria non
+# ha ragione di essere schizzinosa; le versioni esatte su cui sono state fatte le misure del
+# report stanno in requirements.txt, che e' la cosa da usare per riprodurle.
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "torch>=2.0",
+]
+
+[project.optional-dependencies]
+app = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
+figures = ["matplotlib>=3.7"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+parzen-cdf = "parzen_cdf.run:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

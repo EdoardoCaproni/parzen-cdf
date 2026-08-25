@@ -27,6 +27,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+# aliased: 'samples' is a local name all over this file, and shadowing the module here
+# would be a trap waiting for the next edit
+from parzen_cdf import samples as sample_io
 from parzen_cdf import diagnostics, parzen, training
 from parzen_cdf.estimate import loo_parzen_cdf_targets
 from parzen_cdf.models import CDFNet, MixtureCDFNet
@@ -149,27 +152,7 @@ def _domain_grid(samples: np.ndarray, mix: "Mixture | None", mode: str) -> np.nd
     return np.linspace(lo, hi, GRID_POINTS)
 
 
-MAX_N = 50000
-
-
-def parse_samples(text: str) -> np.ndarray:
-    """One observation per line, or separated by commas or spaces. Nothing else is assumed.
-
-    This is the door the estimate is actually meant to come through: a file of numbers, with
-    no distribution behind it that anybody can consult.
-    """
-    tokens = [tok for tok in re.split(r"[\s,;]+", text.strip()) if tok]
-    if not tokens:
-        raise ValueError("the file contains no numbers")
-    try:
-        x = np.asarray([float(tok) for tok in tokens], dtype=float)
-    except ValueError as e:
-        raise ValueError(f"{str(e).split(': ', 1)[-1]} is not a number") from None
-    if not np.all(np.isfinite(x)):
-        raise ValueError("the sample contains inf or nan")
-    if not 10 <= x.size <= MAX_N:
-        raise ValueError(f"need between 10 and {MAX_N} observations, got {x.size}")
-    return x
+MAX_N = 50000   # cap on a mixture drawn here; a loaded file is capped by sample_io
 
 
 def _source(req: dict) -> tuple[np.ndarray, "Mixture | None"]:
@@ -301,9 +284,15 @@ async def distribution(req: dict):
 
 @app.post("/api/samples")
 async def samples_endpoint(req: dict):
-    """Turn a file of numbers into a sample. No distribution, no support, no truth."""
+    """Turn a file of numbers into a sample. No distribution, no support, no truth.
+
+    A file that can be read in more than one way is refused rather than guessed at, because
+    the two readings give different samples and both look perfectly ordinary afterwards.
+    """
     try:
-        x = parse_samples(str(req.get("text", "")))
+        x = sample_io.parse_samples(str(req.get("text", "")),
+                                    column=req.get("column") or None,
+                                    decimal=req.get("decimal") or "auto")
         return {"samples": x.tolist(), "n": int(x.size),
                 "summary": {"min": float(x.min()), "max": float(x.max()),
                             "mean": float(x.mean()), "sd": float(x.std(ddof=1))}}

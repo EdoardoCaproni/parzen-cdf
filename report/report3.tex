@@ -1192,6 +1192,21 @@ column is the efficiency of the window that minimises each indicator.}
 \label{tab:diagnostics}
 \end{table}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{report3_diagnostics.png}
+\caption{What each indicator says about the window, on the reference trimodal (left) and on
+five narrow separated modes (right), at $n = 500$. Each curve is rescaled to $[0,1]$
+separately, because what matters is where it falls, not what it is worth. The cross-validated
+score follows the true density error closely and its minimum sits almost on top of it: taking
+the window it selects costs $6\%$ of the achievable error on the left and $3\%$ on the right.
+The comparison against the empirical distribution function does something else entirely. It
+decreases without a minimum as the window shrinks, so followed to its conclusion it selects
+the smallest window on offer, where the density error is $8.3$ and $2.5$ times the achievable
+one. The vertical lines mark the two minima that exist.}
+\label{fig:diagnostics}
+\end{figure}
+
 The last row is the one we want to draw attention to, because it is the indicator a reader
 would most expect to see. Comparing the estimated distribution function against the empirical
 one, and reporting how closely they agree, looks like the natural way to demonstrate that an
@@ -1202,7 +1217,11 @@ The reason is structural. As $h \to 0$ the Parzen estimate converges to the empi
 distribution function by construction, so that comparison rewards the narrowest window
 available, which is the most overfitted one. It measures how closely the estimate reproduces
 the sample, and reproducing the sample is precisely what a density estimate should not do.
-This report does not include such a figure, and the implementation does not expose one.
+Figure~\ref{fig:diagnostics} shows the three curves side by side: the cross-validated score
+turns where the true error turns, while the comparison against the empirical distribution
+function never turns at all. Both the figure and the interactive tool display that quantity,
+labelled as the trap it is, because an indicator that fails this way is more useful watched
+than described. Neither uses it to select anything.
 
 What we report instead is the LSCV score and the leave-one-out log-likelihood, which rank
 windows almost as the truth would, together with the selected window in both forms, the mass
@@ -1698,7 +1717,7 @@ Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\
 Ch.~5--6, the MLP baseline & \texttt{crosscheck\_real\_code.py} \\
 Ch.~8, domain and diagnostics & \texttt{pipeline\_evidence.py}, \texttt{grid\_rule.py} \\
 Ch.~9, end-to-end comparison & \texttt{endtoend\_compare.py} \\
-Ch.~9, figures & \texttt{scripts/report\_figures.py} \\
+Ch.~8 and~9, figures & \texttt{scripts/report\_figures.py} \\
 Ch.~10, other families & \texttt{resilience\_non\_gaussian.py},
   \texttt{edges\_capacity.py} \\
 \bottomrule

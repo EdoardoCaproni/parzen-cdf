@@ -22,25 +22,27 @@ from pathlib import Path
 
 import numpy as np
 
+from . import samples
 from .estimate import run_from_samples
 
 
-def load_samples(path: Path) -> np.ndarray:
-    """Legge un vettore di numeri da .npy, .csv o .txt. Una colonna, o una riga per valore."""
-    if not path.exists():
-        raise SystemExit(f"file non trovato: {path}")
-    if path.suffix.lower() == ".npy":
-        arr = np.load(path)
-    else:
-        try:
-            arr = np.loadtxt(path, delimiter="," if path.suffix.lower() == ".csv" else None)
-        except ValueError:                       # intestazione o separatore inatteso
-            arr = np.genfromtxt(path, delimiter=",", skip_header=1)
-    arr = np.asarray(arr, dtype=float).reshape(-1)
-    arr = arr[np.isfinite(arr)]
-    if arr.size < 10:
-        raise SystemExit(f"servono almeno 10 campioni validi, trovati {arr.size}")
-    return arr
+def _leggi(path: Path, column: int | None, decimal: str) -> np.ndarray:
+    """La lettura del file, con gli errori tradotti in un'uscita pulita.
+
+    Il modulo ``samples`` si ferma quando il file si puo' leggere in piu' modi invece di
+    sceglierne uno: e' l'unico modo di non consegnare una stima calcolata su numeri che il
+    file non conteneva.
+    """
+    try:
+        return samples.load_samples(path, column=column, decimal=decimal)
+    except FileNotFoundError as e:
+        raise SystemExit(str(e)) from None
+    except samples.FormatoAmbiguo as e:
+        raise SystemExit(
+            f"non so come leggere il file: {e}. "
+            f"Sulla riga di comando: --column N oppure --decimal comma") from None
+    except ValueError as e:
+        raise SystemExit(f"file non leggibile: {e}") from None
 
 
 def _figure(est, out: Path) -> bool:
@@ -75,6 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--samples", required=True, type=Path,
                     help="file con i campioni (.csv, .txt o .npy): un vettore di numeri")
     ap.add_argument("--out", required=True, type=Path, help="cartella di destinazione")
+    ap.add_argument("--column", type=int, default=None,
+                    help="quale colonna contiene il campione, da 1 (se il file ne ha piu' di una)")
+    ap.add_argument("--decimal", choices=("auto", "point", "comma"), default="auto",
+                    help="segno decimale; 'comma' per i file scritti come 1,5")
     ap.add_argument("--components", type=int, default=12,
                     help="numero di componenti della mistura (default 12)")
     ap.add_argument("--epochs", type=int, default=6000)
@@ -85,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
 
-    x = load_samples(a.samples)
+    x = _leggi(a.samples, a.column, a.decimal)
     if not a.quiet:
         print(f"campioni: n = {x.size}, media {x.mean():.4f}, dev.std {x.std(ddof=1):.4f}")
         print("stima in corso...", flush=True)

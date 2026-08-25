@@ -631,18 +631,30 @@ function syncSourceUI() {
 }
 $("#source").addEventListener("change", syncSourceUI);
 
-$("#sample-file").addEventListener("change", async (e) => {
-  const f = e.target.files[0];
+async function loadSampleFile() {
+  const f = $("#sample-file").files[0];
   if (!f) return;
   const note = $("#file-note");
   note.textContent = "Reading…";
   try {
     const res = await fetch("/api/samples", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: await f.text() }),
+      body: JSON.stringify({
+        text: await f.text(),
+        column: +$("#file-column").value || null,
+        decimal: $("#file-decimal").value,
+      }),
     });
     const d = await res.json();
-    if (!res.ok) { state.external = null; note.textContent = d.error; setTrainUI(); return; }
+    if (!res.ok) {
+      // A file that reads two ways is refused rather than guessed at, and the two controls
+      // that resolve it are revealed with the message that asks for them.
+      state.external = null;
+      note.textContent = d.error;
+      $("#file-hints").hidden = false;
+      setTrainUI();
+      return;
+    }
     state.external = d;
     state.dist = { external: true };
     const s = d.summary;
@@ -655,7 +667,10 @@ $("#sample-file").addEventListener("change", async (e) => {
     note.textContent = err.message;
   }
   setTrainUI();
-});
+}
+$("#sample-file").addEventListener("change", loadSampleFile);
+$("#file-column").addEventListener("change", loadSampleFile);
+$("#file-decimal").addEventListener("change", loadSampleFile);
 
 $("#run-parzen").addEventListener("click", async () => {
   const err = $("#parzen-error");

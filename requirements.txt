@@ -1,16 +1,22 @@
-# Core scientific stack
-numpy
-scipy
-matplotlib
+# Versioni fissate a quelle su cui sono state prodotte tutte le misure del report.
+# Python 3.11.9. Il report (appendice B) promette che ogni numero e' riproducibile, e senza
+# le versioni la promessa non vale: torch in particolare cambia l'inizializzazione e i
+# dettagli numerici fra versioni minori.
+#
+# Per installare: pip install -r requirements.txt
 
-# Modelling
-torch
-scikit-learn          # Gaussian-mixture data generation and baseline comparisons
+# Stack scientifico
+numpy==2.4.6
+scipy==1.17.1
+matplotlib==3.11.1         # solo per le figure; la stima non ne ha bisogno
 
-# Exploration & testing
-jupyter
-pytest
+# Modello
+torch==2.13.0
 
-# Interactive lab (app/)
-fastapi
-uvicorn[standard]
+# Laboratorio interattivo (app/)
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+
+# Test
+pytest==9.1.1
+httpx==0.28.1              # richiesto da fastapi.testclient, usato dai test dell'app

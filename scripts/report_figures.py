@@ -5,7 +5,8 @@ precedenti: sono generate chiamando ``run_from_samples`` come lo chiamerebbe chi
 
     python scripts/report_figures.py
 
-Scrive in results/: report3_estimate.png, report3_window.png
+Scrive in results/: report3_estimate.png, report3_window.png,
+report3_diagnostics.png
 """
 
 import numpy as np
@@ -15,7 +16,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from parzen_cdf import data, parzen
-from parzen_cdf.diagnostics import report_domain
+from parzen_cdf.diagnostics import lscv_score, report_domain
 from parzen_cdf.estimate import run_from_samples
 
 N, SEED = 500, 0
@@ -93,3 +94,54 @@ fig.tight_layout()
 fig.savefig("results/report3_window.png", dpi=130)
 plt.close(fig)
 print("results/report3_window.png")
+
+
+# --------------------------------------------------------------- figura 3: la diagnostica
+# Il capitolo 8 dice che il confronto con la CDF empirica e' anticorrelato con l'errore vero
+# e premia la finestra piu' stretta possibile. Detto in una tabella di correlazioni di rango
+# resta un numero; visto come curve e' immediato, perche' una scende dove l'altra sale.
+fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2))
+casi3 = [("trimodal", MIX),
+         ("five narrow separated modes",
+          data.GaussianMixture1D([.2] * 5, [-8, -4, 0, 4, 8], [.35] * 5))]
+
+for ax, (nome, mix) in zip(axes, casi3):
+    xs = mix.sample(N, np.random.default_rng(SEED))
+    lo_, hi_ = report_domain(xs)
+    gg = np.linspace(lo_, hi_, 2001)
+    tp = mix.pdf(gg)
+    ecdf = np.searchsorted(np.sort(xs), gg, side="right") / xs.size
+    sd = xs.std(ddof=1)
+    hs = np.geomspace(0.006 * sd, 1.2 * sd, 55)
+
+    # L'errore vero e' quello sulla densita': sulla CDF, con h che tende a zero, la stima
+    # tende alla CDF empirica e l'errore si ferma sul pavimento statistico invece di
+    # risalire, quindi il costo del sottolisciamento non si vedrebbe.
+    vero, contro_ecdf, punteggio = [], [], []
+    for h in hs:
+        vero.append(float(np.trapezoid((parzen.parzen_pdf(gg, xs, h) - tp) ** 2, gg)))
+        contro_ecdf.append(float(np.max(np.abs(parzen.parzen_cdf(gg, xs, h) - ecdf))))
+        punteggio.append(float(lscv_score(xs, float(h))))
+
+    # ognuna sulla propria scala: conta dove cade il minimo, non il valore
+    def riscala(v):
+        v = np.asarray(v, dtype=float)
+        return (v - v.min()) / (v.max() - v.min())
+
+    ax.semilogx(hs, riscala(vero), color="0.15", lw=1.8, label="density error against the truth (ISE)")
+    ax.semilogx(hs, riscala(punteggio), color="C0", lw=1.5, label="LSCV score")
+    ax.semilogx(hs, riscala(contro_ecdf), color="C3", lw=1.5, ls="--",
+                label="KS against the empirical CDF")
+    ax.axvline(hs[int(np.argmin(vero))], color="0.15", lw=1.0, alpha=0.6)
+    ax.axvline(hs[int(np.argmin(punteggio))], color="C0", lw=1.0, alpha=0.6)
+    ax.set_title(nome)
+    ax.set_xlabel("window $h$")
+    ax.set_ylabel("each curve rescaled to [0, 1]")
+    ax.grid(alpha=0.25, which="both")
+    ax.spines[["top", "right"]].set_visible(False)
+
+axes[0].legend(fontsize=8, loc="upper center", frameon=False)
+fig.tight_layout()
+fig.savefig("results/report3_diagnostics.png", dpi=130)
+plt.close(fig)
+print("results/report3_diagnostics.png")
