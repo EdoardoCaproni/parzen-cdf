@@ -1,6 +1,6 @@
 # Riallineamento della webapp — piano
 
-Stato: **da approvare**. Nessuna riga di `app/` è stata toccata.
+Stato: **fatto**, commit C1-C6 su `refactor/cdf-redesign`.
 
 ## 0. Che cosa deve essere l'app
 

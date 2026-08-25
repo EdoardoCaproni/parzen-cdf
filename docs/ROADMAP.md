@@ -50,7 +50,7 @@ Si applica solo dopo che F1 ha prodotto la motivazione scritta.
 | `run_from_samples`, `Estimate`, CLI (P-D3) | **fatto** |
 | verifica end-to-end nuovo contro vecchio | **fatto** |
 | B2 — allineamento di README, `study2.md`, `report2.tex` | con la stesura del report (F3) |
-| B3, B4 — unificazione dei selettori e dell'app | con P-05 |
+| B3, B4 — unificazione dei selettori e dell'app | **fatto** (`redesign_webapp.md`, C1–C6) |
 | B7 — pulizia del materiale superato | con P-04, prima della consegna |
 | D-15 — isolare in `evaluation.py` ciò che usa la verità | non necessario: il percorso nuovo già non importa `data`, verificato da test sull'AST |
 
@@ -100,6 +100,10 @@ Decisioni prese, con la prova che le sostiene. Non si riaprono senza una prova n
 | D-13 | **Diagnostica truth-free = punteggio LSCV + log-verosimiglianza LOO + massa** | rho 0.94 e 0.86 con l'errore vero | `redesign_pipeline.md` E3 |
 | D-14 | **Vietato il KS contro l'ECDF come diagnostica** | anti-correlato con l'errore vero (rho −0.03); premia h → 0 | `redesign_pipeline.md` P-D5, E3 |
 | D-15 | **Ciò che usa la verità va isolato in `evaluation.py`**, non importato dalla pipeline | separazione strutturale invece che disciplinare | `redesign_pipeline.md` P5 |
+| D-16 | ~~Due modalità nell'app, consegna e studio~~ → **una sola app, tutto vivo** | lo scopo dell'app è esplorare le scelte sbagliate: metterle in una modalità secondaria le nasconde. I nostri valori sono i valori iniziali | `redesign_webapp.md` §0 |
+| D-17 | **Si tiene l'app FastAPI**, la statica si ritira | importa la libreria, quindi non può divergere dal report; dalla statica si portano campo `h1`, `sqrt_n`, tessere di confronto | `redesign_webapp.md` §2 |
+| D-18 | **Campione esterno = testo**, una colonna o separato da virgole | è il formato che si esporta davvero; fra 10 e 50000 osservazioni | `redesign_webapp.md` §4 C5 |
+| D-19 | **Il KS contro l'ECDF è ammesso nell'app solo come tessera-trappola** | D-14 vieta di *decidere* su quel numero; qui lo si guarda fallire, ed è la dimostrazione più efficace | `redesign_webapp.md` §3 W8 |
 
 ---
 

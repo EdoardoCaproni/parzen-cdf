@@ -318,13 +318,15 @@ class Chart {
 const state = {
   reg: null,
   components: [],
-  dist: null,          // {grid,pdf,cdf}
+  dist: null,          // {grid,pdf,cdf}, or {external:true} when the data came from a file
+  external: null,      // {samples,n,summary} of a loaded file; null while building a mixture
   parzen: null,        // last /api/parzen payload
   parzenCfg: null,     // config snapshot used for that payload (training reuses it verbatim)
   train: {
     ws: null, running: false, paused: false, started: false, unbounded: false,
     hist: null, hello: null,
     net: null,         // {sizes, weights, biases, pruned:Set("l:o:i")}
+    parzenRef: null,   // {ks,ise} of the Parzen estimate, to compare the network against
   },
 };
 
