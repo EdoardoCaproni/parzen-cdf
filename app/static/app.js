@@ -105,6 +105,9 @@ class Chart {
   }
 
   set(series) {
+    // A series with nothing behind it is dropped, not drawn empty: with an external sample
+    // there is no truth, and the legend must not promise a curve that does not exist.
+    series = series.filter((s) => s.y != null);
     this.series = series;
     this._schedule();
     if (this._mirror) this._mirror.set(series);
@@ -497,7 +500,7 @@ const construct = {
     this.i = 0;
     this.carry = 0;
     this.sum = new Float64Array(payload.grid.length);
-    this.maxY = Math.max(...payload.truth_pdf, ...payload.parzen_pdf) * 1.18;
+    this.maxY = Math.max(...(payload.truth_pdf || []), ...payload.parzen_pdf) * 1.18;
     $("#skip-anim").hidden = this.speed === 0;
     if (this.speed === 0) this.finish();
     else this.raf = requestAnimationFrame(() => this.tick());
@@ -572,7 +575,7 @@ const construct = {
     }
     ctx.stroke();
 
-    line((g) => truth_pdf[g], C.truth(), [6, 4]);
+    if (truth_pdf) line((g) => truth_pdf[g], C.truth(), [6, 4]);
     if (this.i > 0 && animating) line((g) => this.sum[g] / this.i, C.parzen());
     if (!animating) line((g) => parzen_pdf[g], C.parzen());
 
@@ -603,20 +606,71 @@ const construct = {
 
 $("#skip-anim").addEventListener("click", () => construct.finish());
 
+/* ---------------------------------------------------------------- an external sample
+
+   A file of numbers is the case the estimate is built for: no components to consult, so no
+   truth to score against. Everything that needs one is left empty rather than filled with a
+   plausible-looking stand-in. */
+
+function usingFile() { return $("#source").value === "file"; }
+
+function syncSourceUI() {
+  const file = usingFile();
+  $("#file-field").hidden = !file;
+  $("#mixture-controls").hidden = file;
+  for (const el of document.querySelectorAll("[data-mixture-only]")) el.hidden = file;
+  $("#domain").disabled = file;
+  if (file) $("#domain").value = "samples";
+  $("#chart-true-pdf").hidden = $("#chart-true-cdf").hidden = file;
+  state.dist = file ? (state.external ? { external: true } : null) : state.dist;
+  if (!file) distChanged();
+  setTrainUI();
+}
+$("#source").addEventListener("change", syncSourceUI);
+
+$("#sample-file").addEventListener("change", async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const note = $("#file-note");
+  note.textContent = "Reading…";
+  try {
+    const res = await fetch("/api/samples", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: await f.text() }),
+    });
+    const d = await res.json();
+    if (!res.ok) { state.external = null; note.textContent = d.error; setTrainUI(); return; }
+    state.external = d;
+    state.dist = { external: true };
+    const s = d.summary;
+    note.textContent = `${d.n.toLocaleString("en-US")} observations · range [${fmt(s.min)}, ` +
+      `${fmt(s.max)}] · mean ${fmt(s.mean)} · sd ${fmt(s.sd)}. There is no truth behind these.`;
+    $("#nav-dist").classList.add("is-done");
+    $("#parzen-stale").classList.add("show");
+  } catch (err) {
+    state.external = null;
+    note.textContent = err.message;
+  }
+  setTrainUI();
+});
+
 $("#run-parzen").addEventListener("click", async () => {
   const err = $("#parzen-error");
   err.textContent = "";
-  if (!state.dist) { err.textContent = "Build a distribution in stage 1 first."; return; }
-  const cfg = {
+  if (usingFile() && !state.external) { err.textContent = "Load a sample file first."; return; }
+  if (!usingFile() && !state.dist) { err.textContent = "Build a distribution in stage 1 first."; return; }
+  const cfg = usingFile() ? { samples: state.external.samples, n: state.external.n } : {
     components: JSON.parse(JSON.stringify(state.components)),
     n: sliderToN(+$("#n-samples").value),
     seed: seedValue("#sample-seed-rand", "#sample-seed"),
+  };
+  Object.assign(cfg, {
     kernel: $("#kernel").value,
     strategy: $("#strategy").value,
     h_manual: sliderToH(+$("#manual-h").value),
     h1: +$("#h1").value,
-    domain: $("#domain").value,
-  };
+    domain: usingFile() ? "samples" : $("#domain").value,
+  });
   const btn = $("#run-parzen");
   btn.disabled = true; btn.textContent = "Sampling…";
   try {
@@ -631,7 +685,8 @@ $("#run-parzen").addEventListener("click", async () => {
     $("#parzen-results").hidden = false;
     $("#parzen-stale").classList.remove("show");
     $("#construct-legend").innerHTML =
-      `<span class="key"><span class="swatch dashed" style="border-top-color:${C.truth()}"></span>true pdf</span>` +
+      (usingFile() ? "" :
+        `<span class="key"><span class="swatch dashed" style="border-top-color:${C.truth()}"></span>true pdf</span>`) +
       `<span class="key"><span class="swatch" style="border-top-color:${C.parzen()}"></span>running estimate</span>` +
       `<span class="key"><span class="swatch" style="border-top-color:${C.kernel()};border-top-width:6px"></span>current window ÷ n</span>`;
     construct.start(data, cfg.kernel, +$("#anim-speed").value);
@@ -654,7 +709,7 @@ function onConstructionDone() {
     ["Samples", state.parzenCfg.n.toLocaleString("en-US")],
     ["Window size h", h.per_sample ? `${fmt(h.mean)} <span class="unit">avg</span>` : fmt(h.mean)],
     ["h₁ = h·√n", h.per_sample ? `${fmt(h.h1)} <span class="unit">avg</span>` : fmt(h.h1)],
-    ["CDF gap (KS) vs truth", fmt(d.ks_vs_truth)],
+    ["CDF gap (KS) vs truth", d.ks_vs_truth == null ? "no truth" : fmt(d.ks_vs_truth)],
     [`LSCV score ${help(LSCV_HELP)}`, g.lscv_score == null ? "n too large" : fmt(g.lscv_score, 4)],
     [`LOO log-likelihood ${help(LOO_HELP)}`, g.loo_loglik == null ? "n too large" : fmt(g.loo_loglik, 4)],
     [`KS vs ECDF · trap ${help(TRAP_HELP)}`, fmt(d.ks_vs_ecdf)],
@@ -995,7 +1050,8 @@ function constructSeries() {
   if (!p) return [];
   const n = p.samples.length;
   const animating = construct.i < n;
-  const s = [{ label: "true pdf", color: C.truth(), dash: "6 4", x: p.grid, y: p.truth_pdf }];
+  const s = p.truth_pdf
+    ? [{ label: "true pdf", color: C.truth(), dash: "6 4", x: p.grid, y: p.truth_pdf }] : [];
   if (!animating) {
     s.push({ label: "Parzen estimate", color: C.parzen(), x: p.grid, y: p.parzen_pdf });
   } else if (construct.i > 0) {
@@ -1199,7 +1255,8 @@ function onTrainMessage(msg) {
     if (msg.loss === null || msg.loss === undefined) return;   // prune re-eval: no epoch advanced
 
     t.hist.epoch.push(msg.epoch); t.hist.loss.push(msg.loss);
-    t.hist.kst.push(msg.ks_target); t.hist.ksT.push(msg.ks_truth);
+    t.hist.kst.push(msg.ks_target);
+    if (msg.ks_truth != null) t.hist.ksT.push(msg.ks_truth);
     const total = msg.epochs !== null && msg.epochs !== undefined
       ? msg.epochs.toLocaleString("en-US") : "∞";
     setTile("epoch", `${msg.epoch.toLocaleString("en-US")} <span class="unit">/ ${total}</span>`);
@@ -1207,7 +1264,8 @@ function onTrainMessage(msg) {
     lossChart.set([{ label: "train MSE", color: C.net(), x: t.hist.epoch, y: t.hist.loss }]);
     ksChart.set([
       { label: "KS vs target", color: C.parzen(), x: t.hist.epoch, y: t.hist.kst },
-      { label: "KS vs truth", color: C.truth(), x: t.hist.epoch, y: t.hist.ksT },
+      { label: "KS vs truth", color: C.truth(), x: t.hist.epoch,
+        y: t.hist.ksT.length ? t.hist.ksT : null },
     ]);
     if (t.running && !t.paused) {
       setStatus("running", `training · epoch ${msg.epoch.toLocaleString("en-US")} of ${total} · ${msg.elapsed.toFixed(1)}s`);
@@ -1329,6 +1387,7 @@ async function boot() {
   updateStrategyUI();
   syncEstimatorUI();
   syncTargetUI();
+  syncSourceUI();
   $("#manual-h-out").textContent = fmt(sliderToH(+$("#manual-h").value));
   setTrainUI();
   distChanged();

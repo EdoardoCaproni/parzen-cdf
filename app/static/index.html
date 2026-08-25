@@ -23,14 +23,29 @@
 <!-- ============================================================ stage 1 -->
 <section class="stage" id="stage-dist">
   <div class="stage-head">
-    <h2><span class="stageno">1 ·</span> Build the true distribution</h2>
-    <p class="lede">Compose a mixture of components with known pdf and CDF. Everything downstream
-    is scored against this exact truth, so every error you will see is real.</p>
+    <h2><span class="stageno">1 ·</span> Where the data comes from</h2>
+    <p class="lede">Compose a mixture with known pdf and CDF, and everything downstream is scored
+    against that exact truth, so every error you see is real. Or load a file of numbers, which is
+    the situation the estimate is actually built for: then there is nothing to score against, and
+    the charts that need a truth stay empty.</p>
   </div>
   <div class="stage-grid">
     <aside class="panel">
       <h3>Mixture components</h3>
       <p class="hint">Weights are normalized automatically. Add as many components as you like.</p>
+      <div class="field">
+        <label for="source">Data source</label>
+        <select id="source">
+          <option value="mixture" selected>a mixture I build here</option>
+          <option value="file">a file of numbers</option>
+        </select>
+      </div>
+      <div class="field" id="file-field" hidden>
+        <label for="sample-file">Sample file <span class="help" tabindex="0" data-help="One observation per line, or separated by commas or spaces. Nothing else is read from it: no distribution, no support, no truth. Between 10 and 50000 numbers.">?</span></label>
+        <input type="file" id="sample-file" accept=".csv,.txt,.dat,text/*">
+        <p class="sub" id="file-note">Nothing loaded yet.</p>
+      </div>
+      <div id="mixture-controls">
       <div class="field">
         <label for="preset">Preset</label>
         <select id="preset">
@@ -45,6 +60,7 @@
       <div id="components"></div>
       <div class="btn-row">
         <button class="btn" id="add-component">+ add component</button>
+      </div>
       </div>
       <p class="error-note" id="dist-error"></p>
     </aside>
@@ -81,13 +97,13 @@
     <aside class="panel">
       <h3>Estimator settings</h3>
       <p class="hint">The estimator only ever sees the samples, never the true curve.</p>
-      <div class="field">
+      <div class="field" data-mixture-only>
         <label for="n-samples">Samples <output id="n-samples-out">1000</output></label>
         <input type="range" id="n-samples" min="0" max="100" value="50">
         <p class="sub">More samples sharpen the estimate only if the window size adapts to n.</p>
       </div>
       <div class="field-row">
-        <div class="field">
+        <div class="field" data-mixture-only>
           <label for="sample-seed">Seed</label>
           <input type="number" id="sample-seed" value="0" step="1">
           <label class="check sub-check"><input type="checkbox" id="sample-seed-rand"> random</label>

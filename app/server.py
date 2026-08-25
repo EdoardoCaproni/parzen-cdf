@@ -146,21 +146,57 @@ def _domain_grid(samples: np.ndarray, mix: "Mixture | None", mode: str) -> np.nd
     return np.linspace(lo, hi, GRID_POINTS)
 
 
-def _parzen_payload(req: dict) -> dict:
+MAX_N = 50000
+
+
+def parse_samples(text: str) -> np.ndarray:
+    """One observation per line, or separated by commas or spaces. Nothing else is assumed.
+
+    This is the door the estimate is actually meant to come through: a file of numbers, with
+    no distribution behind it that anybody can consult.
+    """
+    tokens = [tok for tok in re.split(r"[\s,;]+", text.strip()) if tok]
+    if not tokens:
+        raise ValueError("the file contains no numbers")
+    try:
+        x = np.asarray([float(tok) for tok in tokens], dtype=float)
+    except ValueError as e:
+        raise ValueError(f"{str(e).split(': ', 1)[-1]} is not a number") from None
+    if not np.all(np.isfinite(x)):
+        raise ValueError("the sample contains inf or nan")
+    if not 10 <= x.size <= MAX_N:
+        raise ValueError(f"need between 10 and {MAX_N} observations, got {x.size}")
+    return x
+
+
+def _source(req: dict) -> tuple[np.ndarray, "Mixture | None"]:
+    """Either a mixture that can be sampled and consulted, or a file that can only be read."""
+    if req.get("samples"):
+        x = np.asarray(req["samples"], dtype=float).reshape(-1)
+        if x.size < 10:
+            raise ValueError("need at least 10 observations")
+        return x, None
     mix = Mixture(req["components"])
     n = int(req.get("n", 1000))
-    if not 10 <= n <= 50000:
-        raise ValueError("sample count must be between 10 and 50000")
-    seed = int(req.get("seed", 0))
+    if not 10 <= n <= MAX_N:
+        raise ValueError(f"sample count must be between 10 and {MAX_N}")
+    return mix.sample(n, np.random.default_rng(int(req.get("seed", 0)))), mix
+
+
+def _parzen_payload(req: dict) -> dict:
     kernel = req.get("kernel", "logistic")
     if kernel not in parzen.KERNELS:
         raise ValueError(f"unknown window shape {kernel!r}")
-    samples = mix.sample(n, np.random.default_rng(seed))
+    samples, mix = _source(req)
+    n = samples.size
     h = _pick_window_size(samples, kernel, req.get("strategy", "lscv"), req)
     grid = _domain_grid(samples, mix, req.get("domain", "samples"))
     p_cdf = parzen.parzen_cdf(grid, samples, h, kernel)
     p_pdf = parzen.parzen_pdf(grid, samples, h, kernel)
-    t_cdf, t_pdf = mix.cdf(grid), mix.pdf(grid)
+    # No mixture means no truth: the charts and the tiles that need one go dark rather
+    # than being filled with something that looks like an answer.
+    t_cdf = None if mix is None else mix.cdf(grid)
+    t_pdf = None if mix is None else mix.pdf(grid)
     ecdf = _empirical_on_grid(samples, grid)
     h_arr = np.asarray(h, dtype=float)
     return {
@@ -174,8 +210,10 @@ def _parzen_payload(req: dict) -> dict:
                       "h1": float(np.mean(h_arr) * np.sqrt(n))},
         "grid": grid.tolist(),
         "parzen_pdf": p_pdf.tolist(), "parzen_cdf": p_cdf.tolist(),
-        "truth_pdf": t_pdf.tolist(), "truth_cdf": t_cdf.tolist(),
-        "ks_vs_truth": float(np.max(np.abs(p_cdf - t_cdf))),
+        "n": int(n),
+        "truth_pdf": None if t_pdf is None else t_pdf.tolist(),
+        "truth_cdf": None if t_cdf is None else t_cdf.tolist(),
+        "ks_vs_truth": None if t_cdf is None else float(np.max(np.abs(p_cdf - t_cdf))),
         "empirical_cdf": ecdf.tolist(),
         # The trap. Reported so that it can be watched failing: drive h towards zero and this
         # number keeps improving while the error against the truth gets worse. Never a
@@ -253,6 +291,18 @@ async def distribution(req: dict):
         mix = Mixture(req["components"])
         grid = mix.grid()
         return {"grid": grid.tolist(), "pdf": mix.pdf(grid).tolist(), "cdf": mix.cdf(grid).tolist()}
+    except (ValueError, KeyError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.post("/api/samples")
+async def samples_endpoint(req: dict):
+    """Turn a file of numbers into a sample. No distribution, no support, no truth."""
+    try:
+        x = parse_samples(str(req.get("text", "")))
+        return {"samples": x.tolist(), "n": int(x.size),
+                "summary": {"min": float(x.min()), "max": float(x.max()),
+                            "mean": float(x.mean()), "sd": float(x.std(ddof=1))}}
     except (ValueError, KeyError) as e:
         return JSONResponse({"error": str(e)}, status_code=400)
 
@@ -389,10 +439,10 @@ def _eval_snapshot(model: Model, grid: np.ndarray, truth_cdf, truth_pdf, target_
     return {
         "net_cdf": np.round(net_cdf, 6).tolist(),
         "net_pdf": np.round(net_pdf, 6).tolist(),
-        "ks_truth": float(np.max(np.abs(net_cdf - truth_cdf))),
+        "ks_truth": None if truth_cdf is None else float(np.max(np.abs(net_cdf - truth_cdf))),
         "ks_target": float(np.max(np.abs(net_cdf - target_cdf))),
         "ks_ecdf": None if ecdf is None else float(np.max(np.abs(net_cdf - ecdf))),
-        "pdf_mse": float(np.mean((net_pdf - truth_pdf) ** 2)),
+        "pdf_mse": None if truth_pdf is None else float(np.mean((net_pdf - truth_pdf) ** 2)),
         "mass": float(np.trapezoid(net_pdf, grid) if hasattr(np, "trapezoid")
                       else np.trapz(net_pdf, grid)),
         "violations": viol,
@@ -412,7 +462,8 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
     payload = await asyncio.to_thread(_parzen_payload, cfg)
     samples = np.asarray(payload["samples"])
     grid = np.asarray(payload["grid"])
-    truth_cdf, truth_pdf = np.asarray(payload["truth_cdf"]), np.asarray(payload["truth_pdf"])
+    truth_cdf = None if payload["truth_cdf"] is None else np.asarray(payload["truth_cdf"])
+    truth_pdf = None if payload["truth_pdf"] is None else np.asarray(payload["truth_pdf"])
     h = payload["h"]
 
     # The teacher: what the network is asked to reproduce at the sample points. The delivered
@@ -474,7 +525,7 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
     await ws.send_json({
         "type": "hello",
         "grid": grid.tolist(),
-        "truth_cdf": truth_cdf.tolist(), "truth_pdf": truth_pdf.tolist(),
+        "truth_cdf": payload["truth_cdf"], "truth_pdf": payload["truth_pdf"],
         "diagnostics": payload["diagnostics"],
         "parzen_cdf": payload["parzen_cdf"], "parzen_pdf": payload["parzen_pdf"],
         "target_points": {"x": samples[order_idx].tolist(), "y": targets_np[order_idx].tolist(),
