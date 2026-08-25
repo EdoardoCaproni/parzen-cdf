@@ -685,22 +685,39 @@ function renderLayers() {
   }
 }
 
+/* The estimator decides which controls mean anything. Penalties and rectification exist to
+   repair an unconstrained network; the mixture has nothing for them to repair, so they are
+   hidden rather than left switched off, which would read as a choice. */
+const ESTIMATOR_NOTES = {
+  mixture: "A convex combination of logistic CDFs. Monotone, bounded in [0,1] and unit-mass at every parameter value, so the density is a formula rather than a numerical derivative.",
+  mlp: "Weights are free, so nothing keeps F monotone: perturb them and it breaks. Kept to be compared with.",
+};
+
+function syncEstimatorUI() {
+  const mixture = $("#estimator").value === "mixture";
+  for (const el of document.querySelectorAll("[data-mlp-only]")) el.hidden = mixture;
+  $("#components-field").hidden = !mixture;
+  $("#estimator-note").textContent = ESTIMATOR_NOTES[$("#estimator").value];
+  if (!mixture) $("#monotonicity").dispatchEvent(new Event("change"));
+}
+$("#estimator").addEventListener("change", syncEstimatorUI);
+
 $("#monotonicity").addEventListener("change", () => {
   const v = $("#monotonicity").value;
   $("#mono-weight-field").hidden = v !== "penalty";
   const notes = {
-    none: "The study's winner is downstream rectification, below.",
-    penalty: "Adds λ·mean(relu(−dF/dx)) at 256 collocation points. In the study it failed to reach 0 violations.",
-    sill: "Non-negative weights + monotone activations: monotone by construction, at some accuracy cost.",
+    none: "Nothing constrains F. Whether it comes out monotone is luck, and the diagram shows how much.",
+    penalty: "Adds λ·mean(relu(−dF/dx)) at 256 collocation points: it certifies those 256 points and says nothing about what happens between them.",
+    positive: "Non-negative weights and monotone activations make F monotone by construction (Archer & Wang), at some accuracy cost. It still does not pin F(−∞) to 0 or F(+∞) to 1.",
   };
   $("#mono-note").textContent = notes[v];
-  if (v === "sill" && $("#activation").value === "silu") {
+  if (v === "positive" && $("#activation").value === "silu") {
     $("#activation").value = "sigmoid";
     $("#mono-note").textContent += " (silu is not monotone; switched to sigmoid.)";
   }
 });
 $("#activation").addEventListener("change", () => {
-  if ($("#activation").value === "silu" && $("#monotonicity").value === "sill") {
+  if ($("#activation").value === "silu" && $("#monotonicity").value === "positive") {
     $("#monotonicity").value = "none";
     $("#monotonicity").dispatchEvent(new Event("change"));
   }
@@ -720,6 +737,7 @@ class NetDiagram {
     this.o = { W: 800, H: 340, padX: 64, padY: 26, maxEdges: 1200,
                panzoom: false, noteEl: null, scaleEls: null, onToggle: null, ...opts };
     this.sizes = null;
+    this.estimator = "mlp";             // decides what an edge is called, and what a click does
     this.vb = null;                     // pan/zoom viewBox override
     this._downAt = null;
     this._wire();
@@ -785,16 +803,30 @@ class NetDiagram {
       g += `<line ${coords} ${paint} pointer-events="none"></line>`;
       hits += `<line ${coords} stroke="transparent" stroke-width="9" style="cursor:pointer" ${data}></line>`;
     };
+    // The mixture is drawn as a 1 → J → 1 network because that is what it is, but its edges
+    // have their own names, and the incoming one cannot be cut: with a = 0 the unit is the
+    // constant ½, so F(−∞) lifts off zero and F stops being a CDF.
+    const edgeTip = (e) => {
+      if (this.estimator !== "mixture") {
+        return `w = ${fmt(e.w, 4)} · layer ${e.l + 1}, unit ${e.i + 1} → unit ${e.o + 1} · click to prune`;
+      }
+      return e.l === 0
+        ? `width a = ${fmt(e.w, 4)} · component ${e.o + 1} · cannot be cut: a = 0 makes the unit constant at ½, and F(−∞) leaves 0`
+        : `mixing weight π = ${fmt(e.w, 4)} · component ${e.i + 1} · click to switch the component off`;
+    };
     for (const e of drawn) {
       const r = Math.abs(e.w) / maxAbs;
       edgeLines(e,
         `stroke="${e.w >= 0 ? C.wpos() : C.wneg()}" stroke-width="${(0.6 + 3.2 * r).toFixed(2)}" opacity="${(0.18 + 0.72 * r).toFixed(2)}"`,
-        `data-l="${e.l}" data-i="${e.i}" data-o="${e.o}" data-tip="w = ${fmt(e.w, 4)} · layer ${e.l + 1}, unit ${e.i + 1} → unit ${e.o + 1} · click to prune"`);
+        `data-l="${e.l}" data-i="${e.i}" data-o="${e.o}" data-tip="${edgeTip(e)}"`);
     }
     for (const e of cut) {
+      const what = this.estimator === "mixture"
+        ? `component ${e.i + 1} switched off · click to restore`
+        : `pruned · layer ${e.l + 1}, unit ${e.i + 1} → unit ${e.o + 1} · click to restore`;
       edgeLines(e,
         `stroke="${C.truth()}" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.75"`,
-        `data-l="${e.l}" data-i="${e.i}" data-o="${e.o}" data-pruned="1" data-tip="pruned · layer ${e.l + 1}, unit ${e.i + 1} → unit ${e.o + 1} · click to restore"`);
+        `data-l="${e.l}" data-i="${e.i}" data-o="${e.o}" data-pruned="1" data-tip="${what}"`);
     }
     g += hits;
     for (let l = 0; l < L; l++) {
@@ -885,6 +917,11 @@ class NetDiagram {
 
 function togglePrune(l, i, o, isPruned) {
   if (!state.train.started) return;
+  if (netDiagram.estimator === "mixture" && l === 0) {
+    log("a mixture's width cannot be cut: with a = 0 the unit is the constant ½, so F(−∞) " +
+        "leaves 0 and F is no longer a CDF. Cut the mixing weight instead.", "em");
+    return;
+  }
   // optimistic: flip the edge locally right away; the server's snapshot confirms it
   const key = `${l}:${o}:${i}`;
   if (isPruned) state.train.net.pruned.delete(key);
@@ -1093,6 +1130,7 @@ function onTrainMessage(msg) {
       biases: msg.biases,
       pruned: new Set((msg.pruned || []).map(([l, o, i]) => `${l}:${o}:${i}`)),
     };
+    netDiagram.estimator = modalNet.estimator = msg.estimator || "mlp";
     netDiagram.layout(msg.layer_sizes);
     updateNetViews({});
     if (modalNetOpen) modalNet.layout(msg.layer_sizes);
@@ -1177,6 +1215,8 @@ $("#btn-train").addEventListener("click", async () => {
   if (!state.parzenCfg) return;
   const config = {
     ...state.parzenCfg,
+    estimator: $("#estimator").value,
+    n_components: Math.round(+$("#n-components").value),
     hidden: [...layers],
     activation: $("#activation").value,
     optimizer: $("#optimizer").value,
@@ -1257,6 +1297,7 @@ async function boot() {
   renderLayers();
   drawKernelPreview();
   updateStrategyUI();
+  syncEstimatorUI();
   $("#manual-h-out").textContent = fmt(sliderToH(+$("#manual-h").value));
   setTrainUI();
   distChanged();

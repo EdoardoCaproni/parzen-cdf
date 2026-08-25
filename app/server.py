@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from parzen_cdf import parzen, training
-from parzen_cdf.models import CDFNet
+from parzen_cdf.models import CDFNet, MixtureCDFNet
 
 APP_DIR = Path(__file__).parent
 CHECKPOINT_DIR = APP_DIR / "checkpoints"
@@ -217,7 +217,7 @@ class TrainSession:
         self.resume = asyncio.Event()
         self.resume.set()
         self.stopped = False
-        self.model: CDFNet | None = None
+        self.model: "Model | None" = None
         self.config: dict = {}
         self.ctx: dict | None = None
         self.epoch = 0
@@ -230,10 +230,15 @@ class TrainSession:
     def apply_mask(self) -> None:
         if not self.mask or self.model is None:
             return
-        # In monotone (Sill) mode the effective weight is softplus(raw), which cannot be 0;
-        # a very negative raw value makes it numerically zero instead.
-        zero = -20.0 if self.model.monotone else 0.0
         with torch.no_grad():
+            if isinstance(self.model, MixtureCDFNet):
+                # Pruning a mixing weight means driving it out of the softmax.
+                for (_l, _o, i) in self.mask:
+                    self.model.u.data[i] = -20.0
+                return
+            # With positive weights the effective value is softplus(raw), which cannot be 0;
+            # a very negative raw value makes it numerically zero instead.
+            zero = -20.0 if self.model.monotone else 0.0
             for (l, o, i) in self.mask:
                 self.model.weights[l].data[o, i] = zero
 
@@ -241,29 +246,77 @@ class TrainSession:
         return [list(k) for k in self.mask]
 
 
-def _build_model(cfg: dict) -> CDFNet:
+Model = CDFNet | MixtureCDFNet
+
+
+def _build_model(cfg: dict, samples: np.ndarray) -> Model:
+    """The mixture is the delivered estimator; the free MLP stays available to be compared.
+
+    The mixture is initialised from the samples (quantile centres), which is deterministic and
+    consumes no randomness: two runs with the same data start from the same place whatever the
+    seed does. The MLP is initialised at random, which is what makes its seed matter.
+    """
+    if cfg.get("estimator", "mixture") == "mixture":
+        j = int(cfg.get("n_components", 12))
+        if not 1 <= j <= 256:
+            raise ValueError("components: 1 to 256")
+        return MixtureCDFNet(j).init_from_samples(samples)
     hidden = [int(w) for w in cfg.get("hidden", [32])]
     if not hidden or any(not 1 <= w <= 256 for w in hidden) or len(hidden) > 6:
         raise ValueError("hidden layers: 1 to 6 layers, widths 1 to 256")
     return CDFNet(in_dim=1, hidden_sizes=hidden,
                   activation=cfg.get("activation", "sigmoid"),
-                  monotone=cfg.get("monotonicity") == "sill")
+                  monotone=cfg.get("monotonicity") == "positive")
 
 
-def _weight_snapshot(model: CDFNet) -> dict:
+def _layer_sizes(model: Model, cfg: dict) -> list[int]:
+    if isinstance(model, MixtureCDFNet):
+        return [1, model.n_components, 1]
+    return [1, *[int(w) for w in cfg.get("hidden", [32])], 1]
+
+
+def _n_weights(model: Model) -> int:
+    if isinstance(model, MixtureCDFNet):
+        return 3 * model.n_components
+    return sum(w.numel() for w in model.weights)
+
+
+def _weight_snapshot(model: Model) -> dict:
+    """Effective weights, in the layered shape the diagram draws.
+
+    The mixture has no layers of its own, but it is one: J sigmoid units read the same input
+    and a convex combination reads them. So it is drawn as 1 -> J -> 1, with the width
+    ``a_j = softplus(alpha_j)`` on the incoming edge, ``b_j`` as the unit's bias, and the
+    mixing weight ``pi_j = softmax(u)_j`` on the outgoing edge. Everything shown is the
+    effective value, never the raw parameter.
+    """
     with torch.no_grad():
+        if isinstance(model, MixtureCDFNet):
+            a = torch.nn.functional.softplus(model.alpha).cpu().numpy()
+            pi = torch.softmax(model.u, dim=0).cpu().numpy()
+            b = model.b.cpu().numpy()
+            return {
+                "weights": [[[round(float(v), 4)] for v in a],
+                            [[round(float(v), 4) for v in pi]]],
+                "biases": [[round(float(v), 4) for v in b], [0.0]],
+            }
         return {
             "weights": [model._weight(w).cpu().numpy().round(4).tolist() for w in model.weights],
             "biases": [b.cpu().numpy().round(4).tolist() for b in model.biases],
         }
 
 
-def _eval_snapshot(model: CDFNet, grid: np.ndarray, truth_cdf, truth_pdf, target_cdf,
+def _eval_snapshot(model: Model, grid: np.ndarray, truth_cdf, truth_pdf, target_cdf,
                    rectify: bool) -> dict:
+    gt = torch.as_tensor(grid, dtype=torch.float32)
     with torch.no_grad():
-        raw_cdf = model(torch.as_tensor(grid, dtype=torch.float32)).numpy().astype(float)
+        raw_cdf = model(gt).numpy().astype(float)
     viol = float(np.mean(np.diff(raw_cdf) < 0))
-    if rectify:
+    if isinstance(model, MixtureCDFNet):
+        # Closed-form density, and nothing to repair: no rectification, no clamp (D-10, D-11).
+        with torch.no_grad():
+            net_cdf, net_pdf = raw_cdf, model.pdf(gt).numpy().astype(float)
+    elif rectify:
         net_cdf, net_pdf = training.rectify_cdf(raw_cdf, grid)
     else:
         net_cdf, net_pdf = raw_cdf, np.clip(np.gradient(raw_cdf, grid), 0.0, None)
@@ -306,10 +359,11 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
     epochs = int(cfg.get("epochs", 5000))
     if not 1 <= epochs <= 100000:
         raise ValueError("epochs must be between 1 and 100000")
-    training.set_seed(int(cfg.get("net_seed", 0)))
-    model = _build_model(cfg)
+    training.set_seed(int(cfg.get("net_seed", 0)))   # before construction: that is where
+    model = _build_model(cfg, samples)              # initialisation happens (defect B8)
     opt_cls = torch.optim.SGD if cfg.get("optimizer") == "sgd" else torch.optim.Adam
-    n_weights = sum(w.numel() for w in model.weights)
+    n_weights = _n_weights(model)
+    is_mixture = isinstance(model, MixtureCDFNet)
 
     sess.model, sess.config = model, cfg
     sess.epoch = 0
@@ -319,9 +373,12 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
         "targets": torch.as_tensor(targets_np, dtype=torch.float32),
         "optimizer": opt_cls(model.parameters(), lr=float(cfg.get("lr", 0.03))),
         "mse": torch.nn.MSELoss(),
-        "mono_w": float(cfg.get("mono_weight", 0.0)) if cfg.get("monotonicity") == "penalty" else 0.0,
-        "curv_w": float(cfg.get("curv_weight", 0.0)),
-        "rectify": bool(cfg.get("rectify", True)),
+        # Both penalties and the rectification exist to repair an MLP. With the mixture there
+        # is nothing to repair, and running them anyway would hide that (D-10, D-11).
+        "mono_w": 0.0 if is_mixture else (
+            float(cfg.get("mono_weight", 0.0)) if cfg.get("monotonicity") == "penalty" else 0.0),
+        "curv_w": 0.0 if is_mixture else float(cfg.get("curv_weight", 0.0)),
+        "rectify": False if is_mixture else bool(cfg.get("rectify", False)),
         "penalty_pts": torch.linspace(float(grid[0]), float(grid[-1]), 256),
         "grid": grid, "truth_cdf": truth_cdf, "truth_pdf": truth_pdf, "target_cdf": target_cdf,
         "epochs": epochs,
@@ -339,7 +396,8 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
         "parzen_cdf": payload["parzen_cdf"], "parzen_pdf": payload["parzen_pdf"],
         "target_points": {"x": samples[order_idx].tolist(), "y": targets_np[order_idx].tolist(),
                           "shown": int(show.size), "total": int(samples.size)},
-        "layer_sizes": [1, *[int(w) for w in cfg.get("hidden", [32])], 1],
+        "layer_sizes": _layer_sizes(model, cfg),
+        "estimator": "mixture" if is_mixture else "mlp",
         "n_weights": int(n_weights),
         "pruned": sess.pruned_list(),
         **_weight_snapshot(model),
@@ -416,6 +474,28 @@ def _toggle_prune(sess: TrainSession, cmd: str, msg: dict) -> None:
     if sess.model is None:
         raise ValueError("no model yet; start a training run first")
     l, o, i = int(msg["l"]), int(msg["o"]), int(msg["i"])
+    if isinstance(sess.model, MixtureCDFNet):
+        # Switching off a component (its outgoing edge) leaves a convex combination of
+        # logistic CDFs, so the estimate stays a CDF: that is the point worth showing.
+        # An incoming edge is different. With a_j = 0 the unit is the constant 1/2, so
+        # F(-inf) = pi_j/2 > 0 and F is no longer a CDF at all. It is refused rather than
+        # executed, because the guarantee this estimator offers is exactly that it holds
+        # at every parameter value.
+        if l != 1:
+            raise ValueError("with the mixture only the outgoing edges can be pruned: zeroing "
+                             "an incoming edge makes the unit constant at 1/2, which lifts "
+                             "F(-inf) off zero and stops it being a CDF")
+        if not 0 <= i < sess.model.n_components:
+            raise ValueError("component index out of range")
+        with torch.no_grad():
+            if cmd == "prune" and (l, o, i) not in sess.mask:
+                sess.mask[(l, o, i)] = float(sess.model.u.data[i])
+                sess.apply_mask()
+            elif cmd == "unprune":
+                orig = sess.mask.pop((l, o, i), None)
+                if orig is not None:
+                    sess.model.u.data[i] = orig
+        return
     w = sess.model.weights[l]
     if not (0 <= o < w.shape[0] and 0 <= i < w.shape[1]):
         raise ValueError("connection index out of range")
