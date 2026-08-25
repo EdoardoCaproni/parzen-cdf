@@ -106,9 +106,21 @@
         <select id="strategy"></select>
         <p class="sub" id="strategy-note"></p>
       </div>
+      <div class="field" id="h1-field" hidden>
+        <label for="h1">Initial size h&#8321; <span class="help" tabindex="0" data-help="The fixed schedule from nonparametric estimation theory: pick h1 once, and the window then shrinks with the sample count as h = h1/sqrt(n). It never looks at the data, which is what makes it consistent by construction, and what makes the choice of h1 yours.">?</span></label>
+        <input type="number" id="h1" value="1.0" step="0.5" min="0.01">
+        <p class="sub" id="h1-note"></p>
+      </div>
       <div class="field" id="manual-h-field" hidden>
         <label for="manual-h">Window size h <output id="manual-h-out">0.20</output></label>
         <input type="range" id="manual-h" min="0" max="100" value="50">
+      </div>
+      <div class="field">
+        <label for="domain">Domain <span class="help" tabindex="0" data-help="Where the estimate is drawn and where its mass is integrated. The sample-based rule is all you have when the data comes from outside; reading the extent off the components is the shortcut that stops working on somebody else's file.">?</span></label>
+        <select id="domain">
+          <option value="samples" selected>from the samples: [min − 3σ̂, max + 3σ̂]</option>
+          <option value="truth">from the components' quantiles (needs the truth)</option>
+        </select>
       </div>
       <div class="field">
         <label for="anim-speed">Construction speed</label>

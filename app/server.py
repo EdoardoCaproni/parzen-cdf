@@ -27,7 +27,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from parzen_cdf import parzen, training
+from parzen_cdf import diagnostics, parzen, training
 from parzen_cdf.estimate import loo_parzen_cdf_targets
 from parzen_cdf.models import CDFNet, MixtureCDFNet
 
@@ -105,25 +105,45 @@ class Mixture:
 # Window-size strategies (names shown in the UI; CV ones guarded by CV_MAX_N)
 # --------------------------------------------------------------------------------------------------
 
+# Listed in the order the UI shows them: the selector that wins on the benchmark first, then
+# the classical rules, then the ones you drive by hand.
 STRATEGIES = {
-    "manual":           lambda s, k, h: float(h),
-    "silverman":        lambda s, k, h: parzen.silverman_bandwidth(s),
-    "variance_matched": lambda s, k, h: parzen.variance_matched_bandwidth(s, kernel=k),
-    "adaptive":         lambda s, k, h: parzen.adaptive_bandwidths(s, kernel=k),
-    "likelihood_cv":    lambda s, k, h: parzen.likelihood_cv_bandwidth(s, kernel=k),
-    "lscv":             lambda s, k, h: parzen.lscv_bandwidth(s, kernel=k),
+    "lscv":             lambda s, k, o: parzen.lscv_bandwidth(s, kernel=k),
+    "likelihood_cv":    lambda s, k, o: parzen.likelihood_cv_bandwidth(s, kernel=k),
+    "sqrt_n":           lambda s, k, o: parzen.sqrt_n_bandwidth(s, o["h1"]),
+    "variance_matched": lambda s, k, o: parzen.variance_matched_bandwidth(s, kernel=k),
+    "silverman":        lambda s, k, o: parzen.silverman_bandwidth(s),
+    "adaptive":         lambda s, k, o: parzen.adaptive_bandwidths(s, kernel=k),
+    "manual":           lambda s, k, o: float(o["h_manual"]),
 }
 
 
-def _pick_window_size(samples: np.ndarray, kernel: str, strategy: str, h_manual: float | None):
+def _pick_window_size(samples: np.ndarray, kernel: str, strategy: str, opts: dict):
     if strategy not in STRATEGIES:
         raise ValueError(f"unknown strategy {strategy!r}")
     if strategy in ("likelihood_cv", "lscv") and samples.size > CV_MAX_N:
         raise ValueError(f"cross-validation is O(n²) and capped at n = {CV_MAX_N}; "
                          f"use variance-matched (or fewer samples)")
-    if strategy == "manual" and (h_manual is None or h_manual <= 0):
+    if strategy == "manual" and not (opts.get("h_manual") or 0) > 0:
         raise ValueError("manual strategy needs a positive window size")
-    return STRATEGIES[strategy](samples, kernel, h_manual)
+    if strategy == "sqrt_n" and not (opts.get("h1") or 0) > 0:
+        raise ValueError("the h1/sqrt(n) schedule needs a positive h1")
+    return STRATEGIES[strategy](samples, kernel, opts)
+
+
+def _domain_grid(samples: np.ndarray, mix: "Mixture | None", mode: str) -> np.ndarray:
+    """Where the estimate is drawn and integrated.
+
+    The default reads the extent off the samples, because that is all there is when the data
+    comes from outside. Reading it off the components instead is available to be compared
+    with, and is exactly the shortcut that stops working on somebody else's file.
+    """
+    if mode == "truth":
+        if mix is None:
+            raise ValueError("no distribution to read a domain from; use the sample-based one")
+        return mix.grid()
+    lo, hi = diagnostics.report_domain(samples, 3.0)
+    return np.linspace(lo, hi, GRID_POINTS)
 
 
 def _parzen_payload(req: dict) -> dict:
@@ -136,8 +156,8 @@ def _parzen_payload(req: dict) -> dict:
     if kernel not in parzen.KERNELS:
         raise ValueError(f"unknown window shape {kernel!r}")
     samples = mix.sample(n, np.random.default_rng(seed))
-    h = _pick_window_size(samples, kernel, req.get("strategy", "silverman"), req.get("h_manual"))
-    grid = mix.grid()
+    h = _pick_window_size(samples, kernel, req.get("strategy", "lscv"), req)
+    grid = _domain_grid(samples, mix, req.get("domain", "samples"))
     p_cdf = parzen.parzen_cdf(grid, samples, h, kernel)
     p_pdf = parzen.parzen_pdf(grid, samples, h, kernel)
     t_cdf, t_pdf = mix.cdf(grid), mix.pdf(grid)
@@ -145,8 +165,12 @@ def _parzen_payload(req: dict) -> dict:
     return {
         "samples": samples.tolist(),
         "h": h_arr.tolist() if h_arr.ndim else float(h_arr),
+        # h1 = h*sqrt(n) restates whatever the selector chose in the schedule form the course
+        # asks for. It is read off the sample, not a universal constant, exactly as 1.5*sigma
+        # was; what changes is the estimator, not the shape of the schedule.
         "h_summary": {"mean": float(np.mean(h_arr)), "min": float(np.min(h_arr)),
-                      "max": float(np.max(h_arr)), "per_sample": bool(h_arr.ndim)},
+                      "max": float(np.max(h_arr)), "per_sample": bool(h_arr.ndim),
+                      "h1": float(np.mean(h_arr) * np.sqrt(n))},
         "grid": grid.tolist(),
         "parzen_pdf": p_pdf.tolist(), "parzen_cdf": p_cdf.tolist(),
         "truth_pdf": t_pdf.tolist(), "truth_cdf": t_cdf.tolist(),
@@ -176,6 +200,7 @@ def registries():
     return {
         "distributions": {k: v["params"] for k, v in DISTRIBUTIONS.items()},
         "kernels": list(parzen.KERNELS),
+        "domains": ["samples", "truth"],
         "strategies": list(STRATEGIES),
         "activations": ["sigmoid", "tanh", "softplus", "silu"],
         "cv_max_n": CV_MAX_N,

@@ -449,6 +449,11 @@ function updateStrategyUI() {
   const s = $("#strategy").value;
   const n = sliderToN(+$("#n-samples").value);
   $("#manual-h-field").hidden = s !== "manual";
+  $("#h1-field").hidden = s !== "sqrt_n";
+  if (s === "sqrt_n") {
+    $("#h1-note").textContent =
+      `At n = ${n.toLocaleString("en-US")} this gives h = ${fmt(+$("#h1").value / Math.sqrt(n))}.`;
+  }
   let note = STRATEGY_NOTES[s] || "";
   if ((s === "lscv" || s === "likelihood_cv") && n > state.reg.cv_max_n) {
     note += ` Current n = ${n.toLocaleString("en-US")} exceeds the cap.`;
@@ -465,6 +470,7 @@ $("#manual-h").addEventListener("input", () => {
 });
 $("#kernel").addEventListener("change", drawKernelPreview);
 $("#strategy").addEventListener("change", updateStrategyUI);
+$("#h1").addEventListener("input", updateStrategyUI);
 
 /* seed fields: "random" draws a fresh seed per run and shows it, so runs stay reproducible */
 function wireSeed(randSel, inputSel) {
@@ -608,6 +614,8 @@ $("#run-parzen").addEventListener("click", async () => {
     kernel: $("#kernel").value,
     strategy: $("#strategy").value,
     h_manual: sliderToH(+$("#manual-h").value),
+    h1: +$("#h1").value,
+    domain: $("#domain").value,
   };
   const btn = $("#run-parzen");
   btn.disabled = true; btn.textContent = "Sampling…";
@@ -643,6 +651,7 @@ function onConstructionDone() {
   $("#parzen-tiles").innerHTML = [
     ["Samples", state.parzenCfg.n.toLocaleString("en-US")],
     ["Window size h", h.per_sample ? `${fmt(h.mean)} <span class="unit">avg</span>` : fmt(h.mean)],
+    ["h₁ = h·√n", h.per_sample ? `${fmt(h.h1)} <span class="unit">avg</span>` : fmt(h.h1)],
     ["CDF gap (KS) vs truth", fmt(d.ks_vs_truth)],
     ["Window shape", state.parzenCfg.kernel],
     ["Strategy", state.parzenCfg.strategy.replace("_", " ")],
@@ -1296,7 +1305,7 @@ async function boot() {
   state.reg = await res.json();
   $("#kernel").innerHTML = state.reg.kernels.map((k) => `<option value="${k}">${k}</option>`).join("");
   $("#strategy").innerHTML = state.reg.strategies
-    .map((s) => `<option value="${s}" ${s === "silverman" ? "selected" : ""}>${s.replace("_", " ")}</option>`).join("");
+    .map((s) => `<option value="${s}" ${s === "lscv" ? "selected" : ""}>${s.replace(/_/g, " ")}</option>`).join("");
   $("#activation").innerHTML = state.reg.activations
     .map((a) => `<option value="${a}" ${a === "sigmoid" ? "selected" : ""}>${a}</option>`).join("");
   state.components = PRESETS.gauss.map((c) => ({ ...c, params: { ...c.params } }));
