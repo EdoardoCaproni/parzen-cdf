@@ -51,19 +51,20 @@ const KERNELS_JS = {
   triangular: (u) => Math.max(1 - Math.abs(u), 0),
 };
 const KERNEL_NOTES = {
-  logistic: "The project's window: its integral is the sigmoid, so the CDF estimate is closed-form.",
+  logistic: "The project's window. Its integral is the sigmoid, so the CDF estimate is a sum of sigmoids in closed form, with no numerical integration anywhere. Its standard deviation is π/√3 = 1.814, not 1, which is what the classical rules quietly assume.",
   gaussian: "The classic smooth bell; infinite support.",
   box: "The original “square” Parzen window; the density estimate becomes a staircase.",
   epanechnikov: "Compact support; minimizes asymptotic MSE among all windows.",
   triangular: "Compact support, piecewise linear.",
 };
 const STRATEGY_NOTES = {
-  manual: "You pick h yourself. Slide it to feel over- and under-smoothing.",
-  silverman: "Rule of thumb derived for a Gaussian window; tends to over-smooth multimodal shapes.",
-  variance_matched: "Silverman rescaled by the window's own spread; the study's best selector at large n.",
-  adaptive: "Abramson: a per-sample size, smaller where data is dense. Best on disparate-scale densities.",
-  likelihood_cv: "Leave-one-out likelihood search. Strong at small n; O(n²), capped at n ≤ 2000.",
-  lscv: "Least-squares CV, minimizes integrated squared error; the study's best under 2k samples. O(n²), capped at n ≤ 2000.",
+  lscv: "Least-squares cross-validation: picks h by minimizing an estimate of the density's integrated squared error. On a benchmark of sixteen densities it lands within 1.26× of the best possible window on average, and 1.59× at its worst. O(n²), capped at n ≤ 2000.",
+  likelihood_cv: "Leave-one-out likelihood search. Same idea, a different criterion, and it tends to pick a narrower window than LSCV. O(n²), capped at n ≤ 2000.",
+  sqrt_n: "h = h₁/√n. The window shrinks with the sample count and never looks at the data, which is what makes it consistent. Choosing h₁ is then entirely on you: no rule of the form h₁ = c·σ̂ survives contact with a benchmark, where the best constant spans a factor of twelve across densities.",
+  variance_matched: "Silverman rescaled by the window's own spread, which is the correction the classical rule is missing. Still a rule of thumb: it assumes one bell, and pays for it when there is more than one.",
+  silverman: "The classical rule of thumb, derived assuming both the density and the window are Gaussian. With the logistic window it over-smooths by a further factor of π/√3 = 1.814, on top of over-smoothing every multimodal shape.",
+  adaptive: "Abramson: one window per sample, narrower where the data is dense. Made for densities that live at several scales at once.",
+  manual: "You pick h yourself. Slide it and watch what over- and under-smoothing actually look like.",
 };
 
 /* ---------------------------------------------------------------- a small SVG line chart */
@@ -719,7 +720,8 @@ function onConstructionDone() {
   $("#parzen-warnings").hidden = !g.warnings.length;
   $("#parzen-warnings").textContent = g.warnings.join(" · ");
   $("#nav-parzen").classList.add("is-done");
-  $("#net-empty").textContent = "Ready: the training set is the stage-2 samples with their Parzen CDF labels. Configure the network and press Train.";
+  $("#net-empty").textContent = "Ready: the training set is the stage-2 samples with their Parzen CDF labels. Configure the estimator and press Train.";
+  renderVsTiles(null, null);   // a fresh estimation invalidates the previous comparison
   setTrainUI();
 }
 
@@ -1117,6 +1119,8 @@ document.querySelectorAll(".expand").forEach((b) =>
   }));
 
 /* The three help texts the tiles reuse. The trap one is the whole point of showing it. */
+const VIOL_HELP = "Fraction of grid steps where the network's own output goes down. It is measured on the raw curve, before any rectification, so switching rectification on does not make this number fall: it hides the symptom on the drawn curve and leaves the estimator exactly as broken underneath.";
+const MASS_HELP = "Integral of the density over the domain. It is reported, never imposed: a value away from 1 means the domain is too narrow or the estimate is faulty, and both are worth seeing rather than normalizing away.";
 const LSCV_HELP = "Estimated integrated squared error of the density, up to a constant that does not depend on h. Lower is better. Computable without knowing the answer, and on the benchmark it tracks the true error closely.";
 const LOO_HELP = "Average log-density of each sample under the estimate built from the other n-1. Higher is better, and it needs no truth either.";
 const TRAP_HELP = "Distance between the estimate and the empirical CDF of the same samples. It looks like a goodness-of-fit test and is useless as one: drive h towards zero and this keeps improving while the error against the truth gets worse, because the estimate is converging on the very sample it is being scored against. Shown here to be watched failing, never to choose on.";
@@ -1125,13 +1129,34 @@ const TRAP_HELP = "Distance between the estimate and the empirical CDF of the sa
 
 const TILES = [
   ["epoch", "Epoch"], ["loss", "Train loss (MSE)"], ["kst", "KS vs target"],
-  ["ksT", "KS vs truth"], ["ksE", "KS vs ECDF · trap"], ["mass", "pdf mass"],
-  ["viol", "Monotonicity viol."],
+  ["ksT", "KS vs truth"],
+  ["ksE", `KS vs ECDF · trap <span class="help" tabindex="0" data-help="${TRAP_HELP}">?</span>`],
+  ["mass", `pdf mass <span class="help" tabindex="0" data-help="${MASS_HELP}">?</span>`],
+  ["viol", `Monotonicity viol. <span class="help" tabindex="0" data-help="${VIOL_HELP}">?</span>`],
 ];
 function resetTiles() {
   $("#net-tiles").innerHTML = TILES.map(([id, l]) =>
     `<div class="tile" id="tile-${id}"><div class="t-label">${l}</div><div class="t-value">–</div></div>`).join("");
 }
+/* The network against the estimator it learned from, on the same two measures. The point of
+   the exercise is not that the network beats Parzen: it is that a function learned from n
+   labels can stand where a table of n windows stood, and this says by how much. ISE is the
+   severe one, because KS integrates the error away. */
+function renderVsTiles(pw, net) {
+  const host = $("#vs-tiles");
+  host.hidden = !pw || pw.ks == null;
+  if (host.hidden) { host.replaceChildren(); return; }
+  const tile = (label, value, cls) =>
+    `<div class="tile ${cls}"><div class="t-label">${label}</div><div class="t-value">${value}</div></div>`;
+  let html = "";
+  for (const [metric, netV, pwV] of [["KS", net?.ks, pw.ks], ["Density gap (ISE)", net?.ise, pw.ise]]) {
+    const decided = netV != null && pwV != null;
+    html += tile(`${metric} · network vs truth`, fmt(netV), decided ? (netV <= pwV ? "good" : "bad") : "");
+    html += tile(`${metric} · Parzen vs truth`, fmt(pwV), decided ? (pwV <= netV ? "good" : "bad") : "");
+  }
+  host.innerHTML = html;
+}
+
 function setTile(id, html, cls = "") {
   const el = $(`#tile-${id}`);
   el.className = `tile ${cls}`;
@@ -1214,6 +1239,8 @@ function onTrainMessage(msg) {
       biases: msg.biases,
       pruned: new Set((msg.pruned || []).map(([l, o, i]) => `${l}:${o}:${i}`)),
     };
+    t.parzenRef = { ks: msg.parzen_ks, ise: msg.parzen_ise };
+    renderVsTiles(t.parzenRef, null);
     netDiagram.estimator = modalNet.estimator = msg.estimator || "mlp";
     netDiagram.layout(msg.layer_sizes);
     updateNetViews({});
@@ -1239,6 +1266,7 @@ function onTrainMessage(msg) {
     setTile("kst", fmt(msg.ks_target));
     setTile("ksT", fmt(msg.ks_truth));
     setTile("ksE", msg.ks_ecdf == null ? "–" : fmt(msg.ks_ecdf));
+    renderVsTiles(t.parzenRef, { ks: msg.ks_truth, ise: msg.ise });
     setTile("mass", fmt(msg.mass, 4), Math.abs(msg.mass - 1) < 0.01 ? "good" : "");
     setTile("viol", `${fmt(msg.violations * 100)}<span class="unit">%</span>`, msg.violations === 0 ? "good" : "bad");
     fitChart.set([

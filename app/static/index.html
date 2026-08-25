@@ -90,8 +90,9 @@
 <section class="stage" id="stage-parzen">
   <div class="stage-head">
     <h2><span class="stageno">2 ·</span> Estimate it with a Parzen window</h2>
-    <p class="lede">Draw n samples, place one window of mass 1/n on each, and average them.
-    Watch the estimate assemble itself, then compare it to the truth it has never seen.</p>
+    <p class="lede">Place one window of mass 1/n on each observation and average them. Watch
+    the estimate assemble itself, and watch the window size decide how much of the shape
+    survives: it is the one choice that matters more than every other on this page.</p>
   </div>
   <div class="stage-grid">
     <aside class="panel">
@@ -188,14 +189,15 @@
 <section class="stage" id="stage-net">
   <div class="stage-head">
     <h2><span class="stageno">3 ·</span> Distill it into a neural network</h2>
-    <p class="lede">An MLP regresses the Parzen CDF, trained only on the sample points
-    (x<sub>i</sub>, F̂(x<sub>i</sub>)). The pdf is recovered as the derivative of the network.
-    Watch what it learns, epoch by epoch.</p>
+    <p class="lede">The estimator regresses the Parzen CDF at the sample points and nowhere
+    else, then hands back a function that can be evaluated anywhere, with its density as a
+    derivative rather than a table. Which estimator you pick decides whether that function is
+    a CDF by construction or only by luck.</p>
   </div>
   <div class="stage-grid">
     <aside class="panel">
       <h3>Network &amp; training</h3>
-      <p class="hint">Sigmoid activations mirror the shape of a CDF; capacity must grow with the target's sharpness.</p>
+      <p class="hint">A CDF is monotone, runs from 0 to 1, and must be differentiable for the density to exist. Either the estimator guarantees that at every parameter value, or something downstream has to keep repairing it.</p>
       <div class="field">
         <label for="estimator">Estimator <span class="help" tabindex="0" data-help="The mixture is a convex combination of logistic CDFs: monotone, bounded in [0,1], and unit-mass at every parameter value, so nothing downstream has to repair it. The MLP is the earlier design, kept here to be compared with.">?</span></label>
         <select id="estimator">
@@ -219,7 +221,7 @@
           <select id="activation"></select>
         </div>
         <div class="field">
-          <label for="optimizer">Optimizer <span class="help" tabindex="0" data-help="Adam adapts a per-parameter step size. In the study, plain SGD undershot its Parzen target and switching to Adam closed the gap exactly.">?</span></label>
+          <label for="optimizer">Optimizer <span class="help" tabindex="0" data-help="Adam adapts a per-parameter step size. With plain SGD the same run stops short of its target and looks like a capacity limit, which it is not.">?</span></label>
           <select id="optimizer">
             <option value="adam" selected>Adam</option>
             <option value="sgd">SGD</option>
@@ -228,7 +230,7 @@
       </div>
       <div class="field-row">
         <div class="field">
-          <label for="lr">Learning rate <span class="help" tabindex="0" data-help="Step size of the optimizer, kept fixed for the whole run. 0.03 with Adam is the study's default.">?</span></label>
+          <label for="lr">Learning rate <span class="help" tabindex="0" data-help="Step size of the optimizer, kept fixed for the whole run. 0.03 with Adam is what the delivered pipeline uses.">?</span></label>
           <input type="number" id="lr" value="0.03" step="0.001" min="0.00001">
         </div>
         <div class="field">
@@ -272,7 +274,7 @@
       </div>
       <div class="field check" data-mlp-only>
         <input type="checkbox" id="rectify">
-        <label for="rectify">Downstream rectification <span class="help" tabindex="0" data-help="Displays the network's CDF after a cumulative max, rescaled to [0,1]: guarantees a monotone CDF and a unit-mass density at negligible accuracy cost. The study's winning monotonicity strategy.">?</span></label>
+        <label for="rectify">Downstream rectification <span class="help" tabindex="0" data-help="Displays the network's CDF after a cumulative max, rescaled to [0,1]. It repairs the curve on the grid it is drawn on and nowhere else, and the repaired object is a table of numbers rather than a function you can evaluate anywhere. It is a patch for an estimator that cannot keep itself valid; the mixture does not need it.">?</span></label>
       </div>
       <div class="field">
         <label for="net-seed">Seed</label>
@@ -303,6 +305,7 @@
         <div class="viz">
           <div class="status-line"><span class="status-dot" id="status-dot"></span><span id="status-text">idle</span></div>
           <div class="tiles" id="net-tiles"></div>
+          <div class="tiles" id="vs-tiles" hidden></div>
           <div class="chart-card">
             <div class="chart-head">
               <div><h4>The network</h4>

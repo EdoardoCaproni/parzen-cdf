@@ -31,6 +31,9 @@ from parzen_cdf import diagnostics, parzen, training
 from parzen_cdf.estimate import loo_parzen_cdf_targets
 from parzen_cdf.models import CDFNet, MixtureCDFNet
 
+# numpy renamed trapz to trapezoid; resolved once here so the call sites stay readable
+_trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+
 APP_DIR = Path(__file__).parent
 CHECKPOINT_DIR = APP_DIR / "checkpoints"
 GRID_POINTS = 301
@@ -214,6 +217,7 @@ def _parzen_payload(req: dict) -> dict:
         "truth_pdf": None if t_pdf is None else t_pdf.tolist(),
         "truth_cdf": None if t_cdf is None else t_cdf.tolist(),
         "ks_vs_truth": None if t_cdf is None else float(np.max(np.abs(p_cdf - t_cdf))),
+        "ise_vs_truth": None if t_pdf is None else float(_trapezoid((p_pdf - t_pdf) ** 2, grid)),
         "empirical_cdf": ecdf.tolist(),
         # The trap. Reported so that it can be watched failing: drive h towards zero and this
         # number keeps improving while the error against the truth gets worse. Never a
@@ -443,8 +447,11 @@ def _eval_snapshot(model: Model, grid: np.ndarray, truth_cdf, truth_pdf, target_
         "ks_target": float(np.max(np.abs(net_cdf - target_cdf))),
         "ks_ecdf": None if ecdf is None else float(np.max(np.abs(net_cdf - ecdf))),
         "pdf_mse": None if truth_pdf is None else float(np.mean((net_pdf - truth_pdf) ** 2)),
-        "mass": float(np.trapezoid(net_pdf, grid) if hasattr(np, "trapezoid")
-                      else np.trapz(net_pdf, grid)),
+        # ISE is the severe measure of a density: KS integrates the error away, so two very
+        # different densities can share a KS. Reported so the network and the Parzen estimate
+        # it learned from can be put side by side on the same footing.
+        "ise": None if truth_pdf is None else float(_trapezoid((net_pdf - truth_pdf) ** 2, grid)),
+        "mass": float(_trapezoid(net_pdf, grid)),
         "violations": viol,
     }
 
@@ -528,6 +535,7 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
         "truth_cdf": payload["truth_cdf"], "truth_pdf": payload["truth_pdf"],
         "diagnostics": payload["diagnostics"],
         "parzen_cdf": payload["parzen_cdf"], "parzen_pdf": payload["parzen_pdf"],
+        "parzen_ks": payload["ks_vs_truth"], "parzen_ise": payload["ise_vs_truth"],
         "target_points": {"x": samples[order_idx].tolist(), "y": targets_np[order_idx].tolist(),
                           "shown": int(show.size), "total": int(samples.size)},
         "layer_sizes": _layer_sizes(model, cfg),
