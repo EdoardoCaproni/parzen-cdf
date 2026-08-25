@@ -258,9 +258,9 @@ abscissa. The speed is not bought with accuracy, and there is no approximation t
 
 The two levels are easy to confuse, so they are best separated. The Ziggurat is not something
 we implemented: it is the algorithm NumPy uses internally when it draws a standard normal
-variate. We verified this rather than assuming it. The documentation strings do not mention
-the algorithm, but the compiled library that \texttt{Generator} links against exports symbols
-named after it, among them the tail cut-off constant of the normal Ziggurat and its
+variate. We verified this rather than assuming it. The documentation of
+\texttt{standard\_normal} does not name the algorithm, but the compiled library that
+\texttt{Generator} links against exports symbols named after it, among them the tail cut-off constant of the normal Ziggurat and its
 reciprocal, while the legacy \texttt{RandomState} module exports no such symbol, consistent
 with its use of the polar method.
 
@@ -785,7 +785,8 @@ parameters. Then $u$ is bounded, and consequently
 \sigma(m) \;\le\; F_\theta(x) \;\le\; \sigma(M) \qquad \text{for all } x,
 \]
 with $m$ and $M$ finite. Both bounds are strictly inside $(0,1)$, so the values $0$ and $1$
-are never attained nor approached at any finite parameter setting.
+are never attained at any finite parameter setting, and are approached only as $\|w\|$
+diverges.
 \end{theorem}
 
 The proof is in Appendix~\ref{app:proofs}; it is three lines and amounts to the observation
@@ -1578,7 +1579,12 @@ The reparameterisation is what makes this useful rather than merely true: $\pi =
 \mathrm{softmax}(u)$ gives $\pi_j > 0$ with $\sum_j \pi_j = 1$ for every $u \in \mathbb{R}^J$,
 and $a = \mathrm{softplus}(\alpha)$ gives $a_j > 0$ for every $\alpha \in \mathbb{R}^J$. The
 hypotheses therefore hold on the whole parameter space, so no parameter value is inadmissible
-and no optimiser step can leave the set of valid distribution functions.
+and no optimiser step can leave the set of valid distribution functions. In single precision
+there is one corner where this stops being literally true: $\mathrm{softplus}(\alpha)$
+underflows to exactly zero below $\alpha \approx -104$, which turns a component into the
+constant $\tfrac12$. Nothing in training drives a slope there, since the parameters start
+positive and the labels pull them further in that direction, but the guarantee is exact only
+in exact arithmetic.
 
 One consequence should be stated because it is the limitation of Chapter~\ref{sec:limits}:
 $F_\theta' > 0$ everywhere means the density is strictly positive on all of $\mathbb{R}$, so
@@ -1607,8 +1613,12 @@ so choosing $J \ge 1/\varepsilon$ suffices. \hfill$\square$
 Let $S$ map a sample to an estimated distribution function. We want $S(\alpha x +
 \beta)(\alpha t + \beta) = S(x)(t)$ for $\alpha > 0$.
 
-For the Parzen estimator with $h$ proportional to an equivariant scale, $\shat(\alpha x +
-\beta) = \alpha\, \shat(x)$, so $h \mapsto \alpha h$ and the kernel arguments satisfy
+The hypothesis needed on the window is that it is itself equivariant, $h(\alpha x + \beta)
+= \alpha\, h(x)$. A window proportional to an equivariant scale satisfies this because
+$\shat(\alpha x + \beta) = \alpha\, \shat(x)$; so does the cross-validated selector actually
+used, since its criterion transforms by the factor $1/\alpha$ under the substitution and its
+minimiser therefore scales by $\alpha$, which we confirm numerically to machine precision.
+With $h \mapsto \alpha h$ the kernel arguments satisfy
 \[
 \frac{(\alpha t + \beta) - (\alpha x_i + \beta)}{\alpha h} = \frac{t - x_i}{h},
 \]
