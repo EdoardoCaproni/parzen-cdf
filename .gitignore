@@ -31,12 +31,14 @@ runs/
 *.pt
 *.ckpt
 
-# LaTeX build artifacts (report.tex is tracked; the PDF is regenerated via pdflatex)
+# LaTeX build artifacts. The delivered PDF is tracked: it is the thing people read, and
+# asking for a LaTeX distribution just to open it defeats the point.
 report/*.aux
 report/*.log
 report/*.out
 report/*.toc
 report/*.pdf
+!report/report3.pdf
 report/build.log
 
 # OS / editor

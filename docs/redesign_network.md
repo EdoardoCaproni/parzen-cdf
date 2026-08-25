@@ -1,5 +1,11 @@
 # Re-design della rete neurale: dalla CDF "corretta a valle" alla CDF corretta per costruzione
 
+> **Nota di pulizia.** Questo documento cita `docs/study.md`, `docs/study2.md`,
+> `report/report.tex` o `report/report2.tex`, rimossi perche' descrivevano un design
+> sostituito. Restano recuperabili da `git log`. Dove questo documento e' in disaccordo
+> con `report/report3.pdf`, vale il report.
+
+
 **Ambito.** Solo il blocco *rete*: come l'uscita della rete viene resa una funzione di
 ripartizione (dominio, monotonia, derivabilità, code, massa) e come da essa si ricava la
 densità. Restano fuori — e verranno trattate in documenti separati — la scelta della

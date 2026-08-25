@@ -1,5 +1,11 @@
 # Scelta della finestra di Parzen: studio indipendente
 
+> **Nota di pulizia.** Questo documento cita `docs/study.md`, `docs/study2.md`,
+> `report/report.tex` o `report/report2.tex`, rimossi perche' descrivevano un design
+> sostituito. Restano recuperabili da `git log`. Dove questo documento e' in disaccordo
+> con `report/report3.pdf`, vale il report.
+
+
 **Domanda.** Esiste una regola empirica per h₁ (equivalentemente per h, dato che
 h_n = h₁/√n) migliore di `h₁ = 1.5·σ̂`? E, prima ancora: **può esistere** una regola di quel
 tipo?

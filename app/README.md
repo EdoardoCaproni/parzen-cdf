@@ -1,38 +1,53 @@
-# parzen-lab
+# The interactive lab
 
-Educational web app for the project pipeline: build a mixture density with known truth, watch a
-Parzen-window estimate assemble itself sample by sample, then train the neural CDF regressor
-live (loss/metric charts, fit plot, weight-graph view; pause / stop / save / reset, plus
-**Continue** for unbounded training from the current epoch and a snapshot-cadence override).
-Every figure expands into a modal with wheel-zoom and drag-pan; in the network view, clicking a
-connection prunes it (kept at zero through further training, click again to restore) with the
-effect visible live on the CDF plot.
+The project's pipeline, with every choice exposed as a control. It is not a demonstration that
+the delivered configuration is good: it is a bench for taking the rejected road and watching
+what happens. The values it starts with are the delivered ones, and everything else is live.
 
 ## Run
 
 ```bash
 pip install -r ../requirements.txt   # adds fastapi + uvicorn to the project deps
-python server.py                     # http://localhost:8000
+python server.py                     # then http://localhost:8000
 ```
 
-## Architecture
+The server binds both loopbacks, so `localhost` works whichever one the browser resolves first.
+Nothing is exposed to the network.
 
-- `server.py` — FastAPI backend. Reuses the project library directly:
-  `parzen_cdf.parzen` (estimator + window-size selectors), `parzen_cdf.models.CDFNet`,
-  `parzen_cdf.training` (penalties, `rectify_cdf`). REST for stages 1–2; a websocket
-  (`/ws/train`) streams training snapshots and accepts `pause/resume/stop/save` commands.
-  Checkpoints land in `app/checkpoints/` (gitignored).
-- `static/` — dependency-free frontend (vanilla JS + SVG/canvas). `app.js` holds a small
-  reusable `Chart` class, the construction animation, and the network diagram. Design tokens
-  in `style.css`; see `../DESIGN.md` and `../PRODUCT.md`.
+## The three stages
 
-## Extending (registries, no UI changes needed)
+**1. Where the data comes from.** Build a mixture from a registry of five families, and every
+error downstream is measured against that exact truth. Or load a file of numbers, which is the
+situation the estimate is built for: then there is no truth, and every chart and tile that
+needs one goes dark rather than showing something that looks like an answer.
 
-- **New distribution family** → add an entry to `DISTRIBUTIONS` in `server.py`
-  (param defaults + a factory returning a frozen scipy distribution).
-- **New window shape** → add a `Kernel(cdf, pdf, std)` to `KERNELS` in
-  `src/parzen_cdf/parzen.py`, and its pdf to `KERNELS_JS` in `static/app.js`
-  (used only to animate the construction).
-- **New window-size strategy** → add to `STRATEGIES` in `server.py`.
-- **New training technique** → extend the config handling in `_train_loop` and add the
-  control to the stage-3 panel in `static/index.html`.
+**2. Estimate it with a Parzen window.** Watch the estimate assemble itself window by window.
+The window-size strategy is the choice that matters more than any other on the page: seven of
+them are available, including the classical schedule `h = h1/√n` with `h1` in your hands, and
+`h1 = h·√n` is reported whichever one you pick.
+
+**3. Train the estimator.** The mixture of logistic CDFs, or the free MLP it replaced, on the
+labels from stage 2. Loss and metric charts, a live fit plot, and a diagram of the network
+redrawn at every snapshot. Pause, stop, save, reset, and **Continue** for unbounded training
+from the current epoch.
+
+## Things worth doing
+
+- **Slide the window towards zero and watch the trap.** The `KS vs ECDF` tile keeps improving
+  while the error against the truth gets worse. The LSCV score, next to it, does not.
+- **Switch the estimator to the MLP.** The monotonicity-violation tile stops reading zero.
+  Turn on downstream rectification: the drawn curve becomes monotone and the tile does not
+  change, because it measures the raw curve. The patch hides the symptom.
+- **Prune a mixing weight** by clicking the outgoing edge of a component in the network
+  diagram. The component switches off and the estimate is still a valid CDF, which is the
+  theorem made visible. The incoming edge refuses to be cut, and says why.
+- **Compare the teachers.** The leave-one-out labels against the self-inclusive ones, which
+  contain the point they are labelling.
+- **Ask for a domain taken from the true quantiles**, then load a file and ask again.
+
+## Notes
+
+Cross-validated selectors are O(n²) and capped at n = 2000. Checkpoints are `.pt` files with
+the same layout the library writes, so `Estimate.load` can read them.
+
+The visual system is documented in `../DESIGN.md`; the brief it was built to is `../PRODUCT.md`.

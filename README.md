@@ -1,99 +1,104 @@
-# Parzen CDF
+# parzen-cdf
 
-Neural estimation of a cumulative distribution function (CDF) and its density (pdf), using
-Parzen-window estimates as training targets. University project.
+Neural estimation of a distribution function and its density, from samples alone.
 
-The pipeline: a **Parzen window with logistic kernels** gives a smooth, closed-form CDF
-estimate `F̂(x) = (1/n) Σ σ((x − xᵢ)/h)`. An MLP is trained to regress that CDF **on the data
-points only** (inputs `xᵢ`, labels `F̂(xᵢ)` — no collocation, no augmentation), the pdf is
-recovered as the derivative of the trained network, and a **downstream rectification**
-(cumulative max + rescale) guarantees a monotone CDF and a unit-mass density.
+A Parzen window with logistic kernels gives a closed-form estimate of the CDF at the sample
+points. Those values become the labels for a small network, which is a convex mixture of
+logistic CDFs: monotone, bounded in `[0,1]`, and unit-mass at every parameter value, so
+nothing downstream has to repair it. The density is the derivative of that mixture, in closed
+form. Nothing in the estimation path knows the true distribution.
 
-## Status
+University project. **The report is the source of truth**: everything else in this repository
+either implements it or is working material that led to it.
 
-- **Phase A (Parzen window): redone and consolidated** after the professor's review exposed a
-  window-size scale error in the first pass. The corrected study, under the deterministic
-  schedule **h_n = h₁/√n** and budgets capped at n = 2000, is in
-  [`docs/study2.md`](docs/study2.md) (the original run is kept in
-  [`docs/study.md`](docs/study.md) as the historical record).
-- **Phase B (the MLP): redone with the Parzen-Neural-Network recipe** (leave-one-out targets,
-  sharp teacher window, small-capacity net): trained on the sample points only, the MLP
-  **generalizes a better density estimate than the Parzen Window it learns from** (~2× lower
-  pdf ISE across the battery, 30/33 cases), and at the baseline n = 500 it beats the best
-  truth-free Parzen on both metrics. See Phase B in [`docs/study2.md`](docs/study2.md).
-- **Step 2 (multivariate): pending** a discussion with the professor. The known blocker is
-  *N-increasing* monotonicity: 1-D rectification does not make a joint CDF valid, and the
-  3-D mixed-partial density shows a ~70% mass error without it.
+---
 
-## Phase A results, in brief (corrected study)
+## Start here
 
-Logistic-window Parzen with the schedule **h_n = 1.5·σ̂/√n** (the "σ-rule", calibrated by
-stressing h₁ across three orders of magnitude on a ladder of shapes) sits at the statistical
-floor E[KS] ≈ 0.87/√n on every distribution tested, already at **n = 500**:
+**1. Read the report.** `report/report3.pdf`, 29 pages. One chapter per stage of the pipeline,
+in the order the data flows through them. Table 1, on page 4, is the delivered configuration at
+a glance; Appendix C gives the evidence behind each choice.
 
-| selector (battery of 10 random mixtures) | n=500 | n=1000 | n=2000 |
-|---|---|---|---|
-| σ-rule h₁ = 1.5·σ̂ (zero cost) | 0.031 | 0.025 | 0.015 |
-| LSCV (O(n²)) | 0.030 | 0.023 | 0.015 |
-| Silverman (deprecated: kernel-scale mismatch) | 0.078 | 0.068 | 0.057 |
-| oracle fixed-h (truth-peeking bound) | 0.028 | 0.022 | 0.014 |
-| empirical CDF | 0.036 | 0.028 | 0.018 |
+To rebuild it (needs a LaTeX distribution):
 
-**Phase B — the MLP.** With Adam and capacity/training scaled to the target's sharpness, the
-network is a **faithful regressor of its Parzen target** on every distribution tested
-(single Gaussian, bimodals, 10 random mixtures, and the sharp trimodal after a capacity
-push). For monotonicity, the soft penalty fails and the Sill construction costs accuracy;
-**downstream rectification wins** (0% violations, mass exactly 1, negligible KS cost).
-The consolidated end-to-end run is [`scripts/checkpoint1.py`](scripts/checkpoint1.py):
+```bash
+cd report && bash build.sh
+```
 
-![Checkpoint 1](results/checkpoint1.png)
-
-**Does MLP-on-Parzen have an advantage?** A dedicated investigation
-([`temp_analysis/`](temp_analysis/), verdict in
-[`temp_analysis/99_verdict.md`](temp_analysis/99_verdict.md), Italian report in
-[`report/analisi_vantaggio.tex`](report/analisi_vantaggio.tex)) found **no accuracy
-advantage in 1-D**: the net cannot beat the Parzen target it regresses, and a
-direct-likelihood model (GMM/flow) beats both. The genuine advantages are structural:
-guaranteed validity via the CDF route (mass = 1, non-negative pdf, for one cheap rectify),
-constant-cost n-independent querying with ~1000× compression, and the Sklar/copula modeling
-economy. Honest framing: **distillation/serving of a trusted KDE**, not better estimation.
-
-## Interactive lab
-
-An educational web app to build mixture densities, watch the Parzen estimate assemble
-live, and train the neural CDF regressor with live charts and a network weight view:
+**2. Open the lab.** An interactive version of the whole pipeline, with every choice in Table 1
+exposed as a control, so you can take the rejected road and watch it fail.
 
 ```bash
 pip install -r requirements.txt
-python app/server.py            # then open http://localhost:8000
+python app/server.py            # then http://localhost:8000
 ```
 
-See [`app/`](app/) for details. A fully static, dependency-free port of the app is published
-separately as [parzen-lab](https://github.com/Gianeh/parzen-lab), live at
-[gianeh.github.io/parzen-lab](https://gianeh.github.io/parzen-lab/).
+Three stages, top to bottom: build a distribution (or load a file of numbers), estimate it with
+a Parzen window, train the network on those labels. See `app/README.md`.
 
-## Setup
+**3. Run it on data.** The entry point takes a file of numbers and returns an estimate.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
-pytest          # sanity checks
+python -m parzen_cdf.run --samples data.csv --out results/
 ```
 
-## Layout
+`data.csv` is one number per line. No distribution, no support, no truth.
 
-```
-src/parzen_cdf/   library (data, parzen, models, training, metrics)
-scripts/          reproducible experiment runs (Phase A, Phase B, checkpoint 1)
-tests/            sanity checks
-docs/             study log and references
-report/           LaTeX reports (main report + advantage analysis)
-temp_analysis/    the "is there an advantage?" investigation (scripts + findings)
-results/          generated figures (regenerable via the scripts)
-app/              interactive educational lab (FastAPI + browser UI)
-old/              earlier exploratory pass (kept for history)
+In Python:
+
+```python
+from parzen_cdf.estimate import run_from_samples
+
+est = run_from_samples(x)          # x: a 1-D array of observations
+est.cdf(t), est.pdf(t)             # functions, evaluable anywhere
+est.h, est.h1                      # the window, and h1 = h*sqrt(n)
+est.diagnostics()                  # what can be checked without knowing the answer
 ```
 
-See [docs/references.md](docs/references.md) for the bibliography.
+**4. Check it still works.**
+
+```bash
+pytest -q                          # 101 tests, about 90 seconds
+```
+
+---
+
+## What is in here
+
+| | |
+| --- | --- |
+| `report/` | The report. `report3.tex` builds `report3.pdf`. |
+| `src/parzen_cdf/` | The library. `estimate.py` is the entry point; `parzen.py` the window selectors; `models.py` the estimator; `diagnostics.py` what is measurable without a truth. |
+| `app/` | The interactive lab: FastAPI server plus a browser front end. |
+| `tests/` | The property and characterisation tests the report refers to. |
+| `docs/` | Working record: the studies, the redesign documents, the decision register. |
+| `temp_analysis/` | The scripts behind the measurements. Appendix B of the report maps each number to the script that produced it. |
+| `scripts/` | Figure generation for the report. |
+
+### On `docs/` and `temp_analysis/`
+
+These are working material, kept because the report compresses them and because the code
+refers to them, not because they are documentation to read first. They record the project as it
+happened, including things that were measured, believed, and then withdrawn. Where they
+disagree with the report, **the report is right**.
+
+Two files that used to live in `docs/`, `study.md` and `study2.md`, described a design that has
+since been replaced, along with the reports that went with them. They were removed rather than
+left to mislead; `git log` still has them.
+
+---
+
+## The short version of the findings
+
+- **No rule of the form `h1 = c·σ̂` can work.** Across a benchmark of sixteen densities the
+  optimal constant spans a factor of twelve, and recalibrating it carefully makes the rule
+  worse. Least-squares cross-validation is used instead: efficiency 1.26 on average and 1.59 in
+  the worst case against the oracle, against 2.27 and 9.38 for the rule it replaces. The
+  schedule `h_n = h1/√n` is kept, with `h1 = ĥ·√n` reported.
+- **Validity belongs in the architecture, not downstream.** The previous design produced a
+  monotone curve by taking a running maximum on a grid and rescaling to `[0,1]`, which needs a
+  domain read off the true distribution. The mixture needs none of that: perturb its parameters
+  and it stays a CDF, 0 times out of 1000 against 900 for a free MLP.
+- **The most natural sample-based check is a trap.** Comparing the estimate to the empirical
+  CDF is anticorrelated with the true error and rewards the narrowest possible window. The
+  diagnostics that do work are the LSCV score and the leave-one-out log-likelihood.

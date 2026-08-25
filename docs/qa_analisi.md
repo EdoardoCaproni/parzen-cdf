@@ -1,5 +1,11 @@
 # Q&A sull'analisi del progetto — registro
 
+> **Nota di pulizia.** Questo documento cita `docs/study.md`, `docs/study2.md`,
+> `report/report.tex` o `report/report2.tex`, rimossi perche' descrivevano un design
+> sostituito. Restano recuperabili da `git log`. Dove questo documento e' in disaccordo
+> con `report/report3.pdf`, vale il report.
+
+
 Registro delle domande poste e delle risposte verificate, per non perderle. Ogni risposta
 riporta solo ciò che è stato **letto nel codice**, **dimostrato** o **misurato**; dove una
 mia affermazione è stata poi smentita, la smentita è nel testo e non è stata cancellata.

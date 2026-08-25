@@ -9,7 +9,7 @@ Si usa esclusivamente la libreria del repo: parzen_cdf.* e scripts/study2_common
   V1  monotonia strutturale di CDFNet          <- confronta con redesign_network.md E1b
   V2  saturazione delle code dopo il training  <- confronta con E2 / T1
   V3  invarianza per traslazione               <- confronta con E7 / D-09
-  V4  le violazioni di monotonia dichiarate da docs/study2.md si riproducono?
+  V4  le violazioni di monotonia dichiarate dallo studio precedente si riproducono?
   V5  il clamp di density_from_cdf si attiva mai?
 """
 
@@ -100,8 +100,9 @@ for shift in (0.0, 100.0, 1000.0):
 
 print()
 print("=" * 92)
-print("V4  LE VIOLAZIONI DI MONOTONIA DICHIARATE DA docs/study2.md SI RIPRODUCONO?")
-print("    docs/study2.md:140 riporta 1.74% di violazioni per il regime 'raw' a n=1000.")
+print("V4  LE VIOLAZIONI DI MONOTONIA DICHIARATE DALLO STUDIO PRECEDENTE?")
+print("    docs/study2.md, rimosso alla pulizia e recuperabile da git log, riportava")
+print("    1.74% di violazioni per il regime 'raw' a n = 1000.")
 print("    Ricetta dichiarata: width 8, etichette LOO, h = 0.5*sigma/sqrt(n-1), Adam 6000 ep.")
 print(f"    {'seme':>6} {'violazioni %':>14} {'KS grezzo':>11} {'KS rettificato':>16}")
 viols = []

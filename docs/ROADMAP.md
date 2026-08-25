@@ -1,5 +1,11 @@
 # Roadmap del progetto e registro delle decisioni
 
+> **Nota di pulizia.** Questo documento cita `docs/study.md`, `docs/study2.md`,
+> `report/report.tex` o `report/report2.tex`, rimossi perche' descrivevano un design
+> sostituito. Restano recuperabili da `git log`. Dove questo documento e' in disaccordo
+> con `report/report3.pdf`, vale il report.
+
+
 Documento di coordinamento: dove siamo, cosa manca, cosa è già stato deciso e su quali prove.
 Serve a non perdere il filo fra le fasi e a non ridiscutere due volte la stessa cosa.
 

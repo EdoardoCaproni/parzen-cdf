@@ -8,15 +8,16 @@ product
 
 Pietro (the project owner) and his professor, plus fellow students. Context: a university
 office or lecture hall, laptop or projector, daylight. The job: *show* how the project's
-pipeline works — from a known density, through Parzen-window estimation, to a neural CDF
-regressor — step by step, live, with every knob exposed.
+pipeline works — from a known density, or from a file of numbers with no truth behind it,
+through Parzen-window estimation to the neural estimator — step by step, live, with every
+knob exposed, including the ones that make it worse.
 
 ## Product Purpose
 
 An educational lab for the parzen-cdf university project (not a thesis). It lets anyone
-build an arbitrary 1-D mixture density, watch a Parzen-window estimate assemble itself
-sample by sample, then configure and train an MLP CDF regressor with live loss/metric
-charts, a live fit plot, and a weight-graph view of the network. Success: a viewer who has
+build an arbitrary 1-D mixture density, or load a file of numbers, watch a Parzen-window
+estimate assemble itself sample by sample, then configure and train the estimator with live
+loss/metric charts, a live fit plot, and a weight-graph view of the network. Success: a viewer who has
 never read the report understands the pipeline after one session, and the owner can probe
 any parameter combination without touching code.
 
@@ -37,8 +38,9 @@ white paper, unhurried, nothing decorative. The math is the show; the interface 
    (distribution → Parzen → network); each stage's output is the next stage's input.
 2. **Show the construction, not just the result.** Estimation and training are animated
    processes, not final images.
-3. **Every number is honest.** Metrics are computed against the known truth and labeled
-   with what they measure; caps and subsampling in views are stated, never silent.
+3. **Every number is honest.** Metrics say what they measure; caps and subsampling in views
+   are stated, never silent; and when there is no truth to measure against, the tiles that
+   would need one go dark instead of showing a plausible-looking number.
 4. **Knobs teach.** Every control uses the project's fixed terminology (Parzen Window,
    window size) and explains its effect in one line.
 5. **Extensible by registry.** Distribution types, window shapes, and training techniques
