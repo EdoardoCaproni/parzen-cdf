@@ -722,11 +722,17 @@ $("#activation").addEventListener("change", () => {
     $("#monotonicity").dispatchEvent(new Event("change"));
   }
 });
-$("#target").addEventListener("change", () => {
-  $("#target-note").textContent = $("#target").value === "parzen"
-    ? "Labels are the Parzen estimate at the sample points."
-    : "Labels are Fₙ(xᵢ) = (rank − ½)/n: unbiased but noisy; the net's smoothness must do the denoising.";
-});
+const TARGET_NOTES = {
+  parzen_loo: "yᵢ = (n·F̂(xᵢ) − ½)/(n−1): the Parzen estimate at xᵢ with xᵢ itself taken out. A symmetric kernel contributes K(0) = ½ to its own point, and that is what gets subtracted.",
+  parzen: "Labels are the plain Parzen estimate at the sample points, so each label contains the point it is labelling. The network is being asked to reproduce that.",
+  empirical: "Labels are Fₙ(xᵢ) = (rank − ½)/n: unbiased but noisy, and the network's smoothness has to do all the denoising.",
+};
+function syncTargetUI() {
+  const v = $("#target").value;
+  $("#target-note").textContent = TARGET_NOTES[v];
+  $("#teacher-scale-field").hidden = v !== "parzen_loo";
+}
+$("#target").addEventListener("change", syncTargetUI);
 
 /* ---------------------------------------------------------------- network diagram */
 
@@ -1224,6 +1230,7 @@ $("#btn-train").addEventListener("click", async () => {
     epochs: Math.round(+$("#epochs").value),
     snapshot_every: snapEvery(),
     target: $("#target").value,
+    teacher_scale: +$("#teacher-scale").value,
     monotonicity: $("#monotonicity").value,
     mono_weight: +$("#mono-weight").value,
     curv_weight: +$("#curv-weight").value,
@@ -1298,6 +1305,7 @@ async function boot() {
   drawKernelPreview();
   updateStrategyUI();
   syncEstimatorUI();
+  syncTargetUI();
   $("#manual-h-out").textContent = fmt(sliderToH(+$("#manual-h").value));
   setTrainUI();
   distChanged();

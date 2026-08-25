@@ -214,10 +214,15 @@
       <div class="field">
         <label for="target">Training target</label>
         <select id="target">
-          <option value="parzen" selected>Parzen CDF (the pipeline)</option>
+          <option value="parzen_loo" selected>Parzen CDF, leave-one-out</option>
+          <option value="parzen">Parzen CDF, self-inclusive (ablation)</option>
           <option value="empirical">empirical CDF (ablation)</option>
         </select>
-        <p class="sub" id="target-note">Labels are the Parzen estimate at the sample points.</p>
+        <p class="sub" id="target-note"></p>
+      </div>
+      <div class="field" id="teacher-scale-field">
+        <label for="teacher-scale">Teacher window &times; h <span class="help" tabindex="0" data-help="The labels are computed with this multiple of the estimator's window. Below 1 the teacher is sharper than the window that minimises the Parzen estimator's own error: the labels keep more detail and more noise, and the network's limited capacity does the averaging. This is the Parzen Neural Network recipe.">?</span></label>
+        <input type="number" id="teacher-scale" value="0.5" step="0.1" min="0.05" max="4">
       </div>
       <div class="field" data-mlp-only>
         <label for="monotonicity">Monotonicity</label>

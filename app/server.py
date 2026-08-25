@@ -28,6 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from parzen_cdf import parzen, training
+from parzen_cdf.estimate import loo_parzen_cdf_targets
 from parzen_cdf.models import CDFNet, MixtureCDFNet
 
 APP_DIR = Path(__file__).parent
@@ -348,13 +349,27 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
     truth_cdf, truth_pdf = np.asarray(payload["truth_cdf"]), np.asarray(payload["truth_pdf"])
     h = payload["h"]
 
-    if cfg.get("target", "parzen") == "empirical":
+    # The teacher: what the network is asked to reproduce at the sample points. The delivered
+    # recipe leaves each point out of its own label and uses a window deliberately narrower
+    # than the one that minimises the Parzen estimator's own error, letting the network's
+    # limited capacity average the noise away instead of copying it.
+    kernel = cfg.get("kernel", "logistic")
+    target = cfg.get("target", "parzen_loo")
+    scale = float(cfg.get("teacher_scale", 0.5))
+    if not 0.05 <= scale <= 4.0:
+        raise ValueError("teacher window scale must be between 0.05 and 4")
+    if target == "empirical":
         order = np.argsort(np.argsort(samples))
         targets_np = (order + 0.5) / samples.size          # F_n(x_i) = (rank − 0.5)/n
         target_cdf = np.asarray(payload["empirical_cdf"])
-    else:
-        targets_np = parzen.parzen_cdf(samples, samples, h, cfg.get("kernel", "logistic"))
+    elif target == "parzen":
+        # Self-inclusive: every label contains the point it labels, worth K(0) = 1/2 of it.
+        targets_np = parzen.parzen_cdf(samples, samples, h, kernel)
         target_cdf = np.asarray(payload["parzen_cdf"])
+    else:
+        h_teacher = np.asarray(h, dtype=float) * scale
+        targets_np = loo_parzen_cdf_targets(samples, h_teacher, kernel)
+        target_cdf = parzen.parzen_cdf(grid, samples, h_teacher, kernel)
 
     epochs = int(cfg.get("epochs", 5000))
     if not 1 <= epochs <= 100000:
