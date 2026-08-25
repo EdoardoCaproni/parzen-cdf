@@ -161,6 +161,7 @@ def _parzen_payload(req: dict) -> dict:
     p_cdf = parzen.parzen_cdf(grid, samples, h, kernel)
     p_pdf = parzen.parzen_pdf(grid, samples, h, kernel)
     t_cdf, t_pdf = mix.cdf(grid), mix.pdf(grid)
+    ecdf = _empirical_on_grid(samples, grid)
     h_arr = np.asarray(h, dtype=float)
     return {
         "samples": samples.tolist(),
@@ -175,12 +176,51 @@ def _parzen_payload(req: dict) -> dict:
         "parzen_pdf": p_pdf.tolist(), "parzen_cdf": p_cdf.tolist(),
         "truth_pdf": t_pdf.tolist(), "truth_cdf": t_cdf.tolist(),
         "ks_vs_truth": float(np.max(np.abs(p_cdf - t_cdf))),
-        "empirical_cdf": _empirical_on_grid(samples, grid).tolist(),
+        "empirical_cdf": ecdf.tolist(),
+        # The trap. Reported so that it can be watched failing: drive h towards zero and this
+        # number keeps improving while the error against the truth gets worse. Never a
+        # criterion to select on (D-14).
+        "ks_vs_ecdf": float(np.max(np.abs(p_cdf - ecdf))),
+        "diagnostics": _diagnostics(samples, float(np.mean(h_arr)), kernel),
     }
 
 
 def _empirical_on_grid(samples: np.ndarray, grid: np.ndarray) -> np.ndarray:
     return np.searchsorted(np.sort(samples), grid, side="right") / samples.size
+
+
+def _diagnostics(samples: np.ndarray, h_mean: float, kernel: str) -> dict:
+    """What can be measured without knowing the answer.
+
+    Everything here depends on the samples and the window, and on nothing the estimator does,
+    so it is the same block whether you are looking at the Parzen estimate or at the network
+    that learned from it. Mass and monotonicity violations do depend on the estimator, and
+    those are reported next to each curve instead.
+
+    The cross-validated scores cost O(n^2), so above the cap they are left out rather than
+    freezing the page.
+    """
+    n = samples.size
+    h_sil = float(parzen.silverman_bandwidth(samples))
+    h_vm = float(parzen.variance_matched_bandwidth(samples, kernel))
+    lo, hi = diagnostics.report_domain(samples, 3.0)
+    out = {
+        "h1": float(h_mean * np.sqrt(n)),
+        "reference_windows": {"silverman": h_sil, "variance_matched": h_vm},
+        "window_spread": float(max(h_sil, h_vm, h_mean) / max(min(h_sil, h_vm, h_mean), 1e-300)),
+        "sample_domain": [float(lo), float(hi)],
+        "lscv_score": None,
+        "loo_loglik": None,
+    }
+    if n <= CV_MAX_N:
+        out["lscv_score"] = float(diagnostics.lscv_score(samples, h_mean, kernel))
+        out["loo_loglik"] = float(diagnostics.loo_loglikelihood(samples, h_mean, kernel))
+    warnings = []
+    if out["window_spread"] > 3.0:
+        warnings.append(f"the selectors disagree by a factor of {out['window_spread']:.1f}: "
+                        f"the sample is probably multimodal at mixed scales")
+    out["warnings"] = warnings
+    return out
 
 
 # --------------------------------------------------------------------------------------------------
@@ -333,7 +373,7 @@ def _weight_snapshot(model: Model) -> dict:
 
 
 def _eval_snapshot(model: Model, grid: np.ndarray, truth_cdf, truth_pdf, target_cdf,
-                   rectify: bool) -> dict:
+                   rectify: bool, ecdf=None) -> dict:
     gt = torch.as_tensor(grid, dtype=torch.float32)
     with torch.no_grad():
         raw_cdf = model(gt).numpy().astype(float)
@@ -351,6 +391,7 @@ def _eval_snapshot(model: Model, grid: np.ndarray, truth_cdf, truth_pdf, target_
         "net_pdf": np.round(net_pdf, 6).tolist(),
         "ks_truth": float(np.max(np.abs(net_cdf - truth_cdf))),
         "ks_target": float(np.max(np.abs(net_cdf - target_cdf))),
+        "ks_ecdf": None if ecdf is None else float(np.max(np.abs(net_cdf - ecdf))),
         "pdf_mse": float(np.mean((net_pdf - truth_pdf) ** 2)),
         "mass": float(np.trapezoid(net_pdf, grid) if hasattr(np, "trapezoid")
                       else np.trapz(net_pdf, grid)),
@@ -421,6 +462,7 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
         "rectify": False if is_mixture else bool(cfg.get("rectify", False)),
         "penalty_pts": torch.linspace(float(grid[0]), float(grid[-1]), 256),
         "grid": grid, "truth_cdf": truth_cdf, "truth_pdf": truth_pdf, "target_cdf": target_cdf,
+        "ecdf": np.asarray(payload["empirical_cdf"]),
         "epochs": epochs,
         "every": _cadence(cfg, epochs),
         # weights ride along on every snapshot unless the net is huge (then every 5th)
@@ -433,6 +475,7 @@ async def _setup_training(ws: WebSocket, sess: TrainSession, cfg: dict):
         "type": "hello",
         "grid": grid.tolist(),
         "truth_cdf": truth_cdf.tolist(), "truth_pdf": truth_pdf.tolist(),
+        "diagnostics": payload["diagnostics"],
         "parzen_cdf": payload["parzen_cdf"], "parzen_pdf": payload["parzen_pdf"],
         "target_points": {"x": samples[order_idx].tolist(), "y": targets_np[order_idx].tolist(),
                           "shown": int(show.size), "total": int(samples.size)},
@@ -450,7 +493,7 @@ def _full_snapshot(sess: TrainSession, loss: float | None, elapsed: float,
     return {"type": "snapshot", "epoch": sess.epoch, "epochs": target_epoch,
             "loss": loss, "elapsed": elapsed, "pruned": sess.pruned_list(),
             **_eval_snapshot(sess.model, c["grid"], c["truth_cdf"], c["truth_pdf"],
-                             c["target_cdf"], c["rectify"]),
+                             c["target_cdf"], c["rectify"], c["ecdf"]),
             **_weight_snapshot(sess.model)}
 
 
@@ -488,7 +531,7 @@ async def _run_epochs(ws: WebSocket, sess: TrainSession, n_epochs: int | None):
                 snap = {"type": "snapshot", "epoch": sess.epoch, "epochs": target_epoch,
                         "loss": loss_val, "elapsed": elapsed,
                         **_eval_snapshot(model, c["grid"], c["truth_cdf"], c["truth_pdf"],
-                                         c["target_cdf"], c["rectify"])}
+                                         c["target_cdf"], c["rectify"], c["ecdf"])}
             await ws.send_json(snap)
         if sess.epoch % 10 == 0:
             await asyncio.sleep(0)  # let pause/stop/save/prune commands in

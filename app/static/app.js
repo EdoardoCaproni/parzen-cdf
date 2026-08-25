@@ -647,15 +647,22 @@ function onConstructionDone() {
     { label: "Parzen estimate", color: C.parzen(), x: d.grid, y: d.parzen_cdf },
     { label: "empirical CDF", color: C.emp(), type: "step", width: 1.5, x: d.grid, y: d.empirical_cdf },
   ]);
+  const g = d.diagnostics;
+  const help = (txt) => `<span class="help" tabindex="0" data-help="${txt}">?</span>`;
   const h = d.h_summary;
   $("#parzen-tiles").innerHTML = [
     ["Samples", state.parzenCfg.n.toLocaleString("en-US")],
     ["Window size h", h.per_sample ? `${fmt(h.mean)} <span class="unit">avg</span>` : fmt(h.mean)],
     ["h₁ = h·√n", h.per_sample ? `${fmt(h.h1)} <span class="unit">avg</span>` : fmt(h.h1)],
     ["CDF gap (KS) vs truth", fmt(d.ks_vs_truth)],
+    [`LSCV score ${help(LSCV_HELP)}`, g.lscv_score == null ? "n too large" : fmt(g.lscv_score, 4)],
+    [`LOO log-likelihood ${help(LOO_HELP)}`, g.loo_loglik == null ? "n too large" : fmt(g.loo_loglik, 4)],
+    [`KS vs ECDF · trap ${help(TRAP_HELP)}`, fmt(d.ks_vs_ecdf)],
     ["Window shape", state.parzenCfg.kernel],
-    ["Strategy", state.parzenCfg.strategy.replace("_", " ")],
+    ["Strategy", state.parzenCfg.strategy.replace(/_/g, " ")],
   ].map(([l, v]) => `<div class="tile"><div class="t-label">${l}</div><div class="t-value">${v}</div></div>`).join("");
+  $("#parzen-warnings").hidden = !g.warnings.length;
+  $("#parzen-warnings").textContent = g.warnings.join(" · ");
   $("#nav-parzen").classList.add("is-done");
   $("#net-empty").textContent = "Ready: the training set is the stage-2 samples with their Parzen CDF labels. Configure the network and press Train.";
   setTrainUI();
@@ -1053,11 +1060,17 @@ document.querySelectorAll(".expand").forEach((b) =>
     else openChartModal(b.dataset.expand);
   }));
 
+/* The three help texts the tiles reuse. The trap one is the whole point of showing it. */
+const LSCV_HELP = "Estimated integrated squared error of the density, up to a constant that does not depend on h. Lower is better. Computable without knowing the answer, and on the benchmark it tracks the true error closely.";
+const LOO_HELP = "Average log-density of each sample under the estimate built from the other n-1. Higher is better, and it needs no truth either.";
+const TRAP_HELP = "Distance between the estimate and the empirical CDF of the same samples. It looks like a goodness-of-fit test and is useless as one: drive h towards zero and this keeps improving while the error against the truth gets worse, because the estimate is converging on the very sample it is being scored against. Shown here to be watched failing, never to choose on.";
+
 /* ---------------------------------------------------------------- training tiles + log */
 
 const TILES = [
   ["epoch", "Epoch"], ["loss", "Train loss (MSE)"], ["kst", "KS vs target"],
-  ["ksT", "KS vs truth"], ["mass", "pdf mass"], ["viol", "Monotonicity viol."],
+  ["ksT", "KS vs truth"], ["ksE", "KS vs ECDF · trap"], ["mass", "pdf mass"],
+  ["viol", "Monotonicity viol."],
 ];
 function resetTiles() {
   $("#net-tiles").innerHTML = TILES.map(([id, l]) =>
@@ -1169,6 +1182,7 @@ function onTrainMessage(msg) {
     // curves + metric tiles always (also for the instant re-eval after a prune/restore)
     setTile("kst", fmt(msg.ks_target));
     setTile("ksT", fmt(msg.ks_truth));
+    setTile("ksE", msg.ks_ecdf == null ? "–" : fmt(msg.ks_ecdf));
     setTile("mass", fmt(msg.mass, 4), Math.abs(msg.mass - 1) < 0.01 ? "good" : "");
     setTile("viol", `${fmt(msg.violations * 100)}<span class="unit">%</span>`, msg.violations === 0 ? "good" : "bad");
     fitChart.set([
