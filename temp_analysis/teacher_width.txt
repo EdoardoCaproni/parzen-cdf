@@ -1,0 +1,50 @@
+============================================================================================
+FINESTRA DEL MAESTRO: teacher_scale volte la finestra scelta per lo stimatore
+n = 500, 5 semi, J = 12. Media su semi di ISE della densita' e KS della CDF.
+Il maestro e' la CDF di Parzen leave-one-out; scale = 1 usa la stessa finestra dello
+stimatore, scale < 1 la stringe deliberatamente.
+============================================================================================
+
+--- trimodale
+     scale    ISE pdf     KS cdf    ISE/min
+      0.25    0.00509     0.0351       1.54
+      0.50    0.00419     0.0348       1.27
+      0.75    0.00352     0.0345       1.07
+      1.00    0.00330     0.0344       1.00  <- min
+      1.50    0.00425     0.0360       1.29
+    Parzen    0.00398     0.0346
+
+--- 5 mode strette
+     scale    ISE pdf     KS cdf    ISE/min
+      0.25    0.00398     0.0367       1.15
+      0.50    0.00346     0.0364       1.00  <- min
+      0.75    0.00400     0.0367       1.16
+      1.00    0.00612     0.0394       1.77
+      1.50    0.01437     0.0471       4.15
+    Parzen    0.00702     0.0393
+
+--- 6 mode scale miste
+     scale    ISE pdf     KS cdf    ISE/min
+      0.25    0.00326     0.0391       1.16
+      0.50    0.00289     0.0385       1.03
+      0.75    0.00281     0.0387       1.00  <- min
+      1.00    0.00316     0.0393       1.12
+      1.50    0.00505     0.0424       1.80
+    Parzen    0.00396     0.0389
+
+============================================================================================
+RIASSUNTO
+   caso                    scale migliore   peggio/migliore
+   trimodale                         1.00              1.54x
+   5 mode strette                    0.50              4.15x
+   6 mode scale miste                0.75              1.80x
+
+   caso peggiore fra i tre bersagli, normalizzato al migliore fra le scale:
+     scale 0.25: 1.27x
+     scale 0.50: 1.05x
+     scale 0.75: 1.00x
+     scale 1.00: 1.53x
+     scale 1.50: 3.59x
+
+   Il criterio e' lo stesso della scelta di J: il bersaglio e' una distribuzione sola
+   e ignota, quindi conta il caso peggiore, non la media fra i casi.

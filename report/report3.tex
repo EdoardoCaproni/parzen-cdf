@@ -113,8 +113,8 @@ Window &
   \S\ref{sec:window} \\
 Labels &
   Leave-one-out Parzen distribution function at the sample points, computed with half the
-  selected window &
-  \S\ref{sec:training} \\
+  selected window; wider labels erase the structure the network is there to recover &
+  \S\ref{sec:teacher-window} \\
 Estimator &
   Convex mixture of logistic distribution functions on a standardised input; twelve of them,
   chosen on the worst case of the capacity table &
@@ -943,8 +943,42 @@ converges to is closer to the underlying curve than the labels it was shown. Wid
 window would remove the noise before training, but it would also remove the signal it is
 hiding, and the network cannot recover what the smoothing discarded.
 
-The effect is real but modest at the sample sizes of interest, and Chapter~\ref{sec:results}
-reports it rather than assuming it.
+How narrow is a separate question from whether, and the factor of two is a round number, so
+we swept it.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+\textbf{Target} & $0.25\,\hhat$ & $0.5\,\hhat$ & $0.75\,\hhat$ & $\hhat$ & $1.5\,\hhat$ \\
+\midrule
+trimodal & $0.00509$ & $0.00419$ & $0.00352$ & $\mathbf{0.00330}$ & $0.00425$ \\
+five narrow separated modes & $0.00398$ & $\mathbf{0.00346}$ & $0.00400$ & $0.00612$ &
+  $0.01437$ \\
+six modes at mixed scales & $0.00326$ & $0.00289$ & $\mathbf{0.00281}$ & $0.00316$ &
+  $0.00505$ \\
+\midrule
+\textbf{worst case} & $0.00509$ & $0.00419$ & $\mathbf{0.00400}$ & $0.00612$ & $0.01437$ \\
+\textbf{relative to best} & $1.27$ & $1.05$ & $\mathbf{1.00}$ & $1.53$ & $3.59$ \\
+\bottomrule
+\end{tabular}
+\caption{Integrated squared error on the density at $n = 500$, averaged over five samples,
+as the window used for the labels varies. The last column widens the teacher beyond the
+estimator's own window rather than narrowing it.}
+\label{tab:teacher}
+\end{table}
+
+The direction is confirmed and the cost of getting it wrong is asymmetric. Using the
+estimator's own window for the labels costs $1.53$ on the worst case, and widening it by half
+again costs $3.59$. The damage falls on the five narrow modes, where over-smoothed labels
+erase the structure the network is there to recover, and the error grows by a factor of four.
+
+The factor itself matters much less. Between $0.5$ and $0.75$ the worst case moves by five
+per cent, and the three targets disagree about which is best, putting their individual minima
+at $1.00$, $0.5$ and $0.75$ respectively. That disagreement is the reason not to calibrate the
+factor finely: it would be fitting the benchmark rather than the mechanism. We keep the half,
+which sits inside the flat region and is the value every other measurement in this report was
+taken with.
 
 \subsection{What is no longer needed}
 
@@ -1643,6 +1677,7 @@ Ch.~3 and~5, figures quoted in the text & \texttt{report\_numbers.py} \\
 Ch.~4, window selectors & \texttt{bandwidth\_study.py}, \texttt{bandwidth\_run.py} \\
 Ch.~4, schedule exponent & \texttt{schedule\_exponent.py} \\
 Ch.~5, architecture comparison & \texttt{revalidate\_torch.py} \\
+Ch.~6, teacher window & \texttt{teacher\_width.py} \\
 Ch.~5--6, the MLP baseline & \texttt{crosscheck\_real\_code.py} \\
 Ch.~8, domain and diagnostics & \texttt{pipeline\_evidence.py}, \texttt{grid\_rule.py} \\
 Ch.~9, end-to-end comparison & \texttt{endtoend\_compare.py} \\
