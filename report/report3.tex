@@ -29,9 +29,6 @@
 \newtheorem{theorem}{Theorem}
 \newtheorem{proposition}[theorem]{Proposition}
 
-\newcommand{\takeaway}[1]{\medskip\noindent\fcolorbox{black!30}{black!4}{%
-  \parbox{0.97\linewidth}{\textbf{In short.} #1}}\medskip}
-
 \title{Nonparametric estimation of a distribution function\\
 and of the density derived from it\\
 \large Parzen window and neural network: method, measurements, and limits}
@@ -97,23 +94,12 @@ integrate to one. If the network is asked for a distribution function, its struc
 made to guarantee all the properties we want; if it is asked for a density, guaranteeing
 non-negativity and unit mass at the same time is considerably harder.
 
-\subsection{What is delivered}
+\subsection{The configuration}
 
-The pipeline takes a vector of numbers and returns:
-
-\begin{itemize}
-  \item two functions, $\Fhat$ and $\fhat$, evaluable at any real point, not tables
-        sampled on a grid;
-  \item a window width $\hhat$, reported also as $\hhat_1 = \hhat\sqrt{n}$ so that it fits
-        the schedule $h_n = h_1/\sqrt{n}$;
-  \item a block of diagnostics computable without knowing the true distribution;
-  \item a command-line entry point, so that the procedure can be run by someone who did not
-        write it, on data we have never seen.
-\end{itemize}
-
-The settings that define it are collected in Table~\ref{tab:setup}, each with the chapter
-that argues for it. They are the defaults of the delivered entry point, so a run that
-specifies nothing uses exactly this configuration.
+What the pipeline returns is $\Fhat$ and $\fhat$ as functions, evaluable at any real point
+rather than tabulated on a grid. The settings that produce them are collected in
+Table~\ref{tab:setup}, each with the section that argues for it. They are the defaults of the
+delivered entry point, so a run that specifies nothing uses exactly this configuration.
 
 \begin{table}[H]
 \centering
@@ -130,8 +116,9 @@ Labels &
   selected window &
   \S\ref{sec:training} \\
 Estimator &
-  Convex mixture of twelve logistic distribution functions, on a standardised input &
-  \S\ref{sec:network} \\
+  Convex mixture of logistic distribution functions on a standardised input; twelve of them,
+  chosen on the worst case of the capacity table &
+  \S\ref{sec:components} \\
 Initialisation &
   Component centres at the sample quantiles, equal weights; consumes no randomness &
   \S\ref{sec:reproducibility} \\
@@ -168,17 +155,13 @@ script that reproduces each measurement reported here.
 \subsection{Why the generator matters even though it is not part of the pipeline}
 
 The estimator never sees the generator. It receives a vector of numbers and knows nothing
-about where they came from, which is the whole point of a nonparametric method. It would
-therefore be tempting to treat the way we produce test data as an implementation detail.
+about where they came from, which is the whole point of a nonparametric method.
 
-It is not, for a simple reason: every number in this report was measured on samples we
-generated ourselves. Calibration of the window, the choice of the number of network
-components, the comparison between architectures: all of it rests on synthetic data drawn
-from distributions whose truth we know, because otherwise there would be nothing to compare
-against. A generator with a subtle bias would contaminate every one of those conclusions,
-and it would do so silently: nothing downstream would look wrong. The generator is not in
-the pipeline, but it is upstream of every measurement, and it deserves the same scrutiny as
-the estimator.
+The measurements are a different matter. Every number in this report was taken on samples we
+generated ourselves, because calibrating the window, choosing the number of network components
+and comparing architectures all need a distribution whose truth is known. A generator with a
+subtle bias would contaminate all of it without anything downstream looking wrong, so it gets
+the same scrutiny here as the estimator.
 
 \subsection{Ancestral sampling from a mixture}
 
@@ -201,8 +184,7 @@ is the observation $X$:
 I \sim \text{Categorical}(w_1,\dots,w_k), \qquad X \mid I = i \;\sim\; f_i .
 \]
 
-This is not an approximation of the mixture; it \emph{is} the mixture, and the verification
-is one line:
+The construction gives back the mixture exactly:
 \[
 \Pr(X \le x) \;=\; \sum_i \Pr(I = i)\, \Pr(X \le x \mid I = i) \;=\; \sum_i w_i F_i(x),
 \]
@@ -211,14 +193,13 @@ convergence, no numerical error. The cost is $O(n)$: one categorical draw and on
 component draw per observation, both vectorised.
 
 The alternative would be \emph{inverse transform sampling}: if $U$ is uniform on $(0,1)$ then
-$F^{-1}(U)$ has distribution function $F$, for any $F$ whatsoever. It is the universal
-method, and for a mixture it is also the wrong one: the distribution function of a mixture of
-normals cannot be inverted in closed form, so each sample would require a numerical root
-search. The result would be exact only up to the tolerance of that search, and would cost
+$F^{-1}(U)$ has distribution function $F$, for any $F$ whatsoever. That generality is
+what makes it the standard fallback, and here it is what it costs. The distribution function
+of a mixture of normals cannot be inverted in closed form, so each sample would require a
+numerical root search. The result would be exact only up to the tolerance of that search, and would cost
 $O(n \times \text{iterations})$. We implemented it anyway and compared: the two samples are
-statistically indistinguishable (two-sample Kolmogorov--Smirnov test, $p = 0.696$). The
-choice is therefore not between right and wrong, but between exact-and-cheap and
-approximate-and-expensive.
+statistically indistinguishable (two-sample Kolmogorov--Smirnov test, $p = 0.696$). Both are correct, then; what
+separates them is that one is exact and cheap and the other approximate and expensive.
 
 \subsection{The Ziggurat algorithm}
 
@@ -296,8 +277,8 @@ Sampling strategy & ancestral vs.\ inversion & indistinguishable, $p = 0.696$ \\
 \label{tab:generator}
 \end{table}
 
-The second check deserves a comment, because it is the one usually omitted. A correct
-generator should not merely \emph{pass} a goodness-of-fit test; the $p$-values it produces
+The second check is the one usually omitted. A correct generator should not merely
+\emph{pass} a goodness-of-fit test; the $p$-values it produces
 should be \emph{uniformly distributed}. A generator whose $p$-values cluster near one would
 be as suspicious as one that rejects too often, since it would mean the samples fit the
 target better than chance allows. Testing the uniformity of the $p$-values is therefore the
@@ -329,12 +310,6 @@ is $\pm 0.0438$; all three schemes sit well inside it.}
 The earlier borderline values were fluctuations. As an independent confirmation, the average
 of the 2000 sample means is $0.69930$ against a true mixture mean of $0.70000$, a discrepancy
 of about a third of a standard error.
-
-\takeaway{The generator is not part of the estimation pipeline, but every measurement in
-this report depends on it, so it was checked rather than assumed. Ancestral sampling is
-exact by construction and costs $O(n)$; the Ziggurat, which produces the individual normal
-variates, is an exact rejection sampler and not a fast approximation. The two operate at
-different levels and compose.}
 
 % =====================================================================================
 \section{The Parzen window estimator}
@@ -457,14 +432,6 @@ a number at least $1$, where $1$ means it found the best window achievable with 
 estimator on that sample. Reporting efficiencies rather than raw errors is what makes it
 meaningful to average across a benchmark of very different densities.
 
-\takeaway{The logistic kernel is chosen because its antiderivative is the sigmoid, which
-makes the estimated distribution function exact, smooth and available in closed form, with
-the density as its exact derivative. Classical bandwidth rules assume a unit-variance kernel
-and must be rescaled by $\pi/\sqrt3$ before being used with it; omitting that correction
-costs a factor of more than two on the density error. Density error is scored by integrated
-squared error, which is the demanding measure, and selectors are compared by efficiency
-relative to an oracle that is used only as a normaliser.}
-
 % =====================================================================================
 \section{The window: the central problem}
 \label{sec:window}
@@ -549,8 +516,8 @@ $c \cdot d_k$ & anchored to a \emph{local} scale, the distance to the $k$-th nei
 \label{tab:selectors}
 \end{table}
 
-The plug-in deserves a word since we derived it rather than copying a formula. The
-asymptotically optimal window depends on $\theta_4 = \int (f'')^2$, a functional of the
+We derived the plug-in rather than copying a formula. The asymptotically optimal window
+depends on $\theta_4 = \int (f'')^2$, a functional of the
 unknown density; estimating $\theta_4$ with a kernel estimator requires a pilot bandwidth,
 which we take from the normal reference. The derivation is in
 Appendix~\ref{app:proofs}; as a check, feeding the normal reference into both stages
@@ -574,10 +541,10 @@ column, where its objective has no structural advantage.
 
 \subsection{The central result: the constant is not a constant}
 
-Before comparing selectors, there is a prior question: does the rule we were looking for
-exist at all? For each family with a free constant we computed the optimal value
-separately on each density. If a law of the form $h_1 = c\,\shat$ existed, those values
-would agree.
+Comparing selectors comes second. First we checked whether the rule we had been looking for
+exists at all, by computing, for each family with a free constant, the optimal value
+separately on each density. If a law of the form $h_1 = c\,\shat$ existed, those values would
+agree.
 
 \begin{table}[H]
 \centering
@@ -634,9 +601,9 @@ each, $n = 500$. Lower is better and $1$ is unattainable.}
 \label{tab:selector-results}
 \end{table}
 
-LSCV wins on every column, and the column that matters most is the worst case: it is the
-only selector without a catastrophic density anywhere in the benchmark. The professor's data
-will be one distribution, not an average over sixteen, so a selector that is excellent on
+LSCV wins on every column, and it is the only selector without a catastrophic density
+anywhere in the benchmark. That last property is the one to weigh: the professor's data will
+be one distribution rather than an average over sixteen, so a selector that is excellent on
 average and disastrous on one shape is a poor bet.
 
 The normal-reference rules deserve a comment, because they perform worse here than their
@@ -655,9 +622,8 @@ Their error is a systematic smoothing bias that does not shrink with $n$, while 
 they are compared against keeps improving, so the ratio grows. It is the signature of a
 model error rather than a variance one.
 
-The standard objection to cross-validation is that the window it selects varies a great deal
-between samples. The objection is correct, and we measured it: across the sixteen densities
-the coefficient of variation of $h$ over twelve samples ranges from $0.10$ to $0.35$ for
+Cross-validation is unstable, and by a wide margin. Across the sixteen densities the
+coefficient of variation of $h$ over twelve samples ranges from $0.10$ to $0.35$ for
 LSCV, against $0.02$ to $0.16$ for the plug-in and $0.01$ to $0.17$ for Silverman. LSCV is
 indeed the noisiest of the three.
 
@@ -713,14 +679,6 @@ holds constant and which in fact ranges from $0.32$ to $3.77$ across the sixteen
 densities of the benchmark at $n = 500$. That spread is produced by the recommended selector
 running on data, not by an oracle: even a procedure that looks at the sample does not find a
 constant ratio, because there is no constant ratio to find.
-
-\takeaway{A rule of the form $h_1 = c\,\shat$ cannot be made to work: the optimal constant
-ranges over a factor of twelve across the benchmark, and recalibrating it carefully makes the
-rule worse rather than better. Least-squares cross-validation is used instead, with efficiency
-$1.26$ on average and $1.59$ in the worst case against $2.27$ and $9.38$ for the rule it
-replaces. It is the noisiest selector of those tested, and that noise does not reach the error
-because the error curve is flat near its minimum. The window is delivered as
-$\hhat_1 = \hhat \sqrt n$, keeping the schedule intact.}
 
 % =====================================================================================
 \section{The network: enforcing the shape of a distribution function}
@@ -905,8 +863,7 @@ every $\alpha > 0$ and $\beta$.
 \end{theorem}
 
 In exact arithmetic the two estimates coincide. In single precision they do not quite, and
-the reason is worth locating precisely, because it is not where one might guess: it is the
-subtraction $x - \mu$ itself. As the sample moves away from the origin the two terms become
+what costs the precision is the subtraction $x - \mu$ itself. As the sample moves away from the origin the two terms become
 close in magnitude and their difference loses relative precision, so the standardised sample
 is reproduced to $2 \times 10^{-7}$ at the origin, $1.5 \times 10^{-5}$ at an offset of a
 thousand, and $2.4 \times 10^{-4}$ at ten thousand.
@@ -918,6 +875,7 @@ The practical limit is therefore set by single-precision arithmetic rather than 
 construction, and it sits three orders of magnitude below the estimation error itself.
 
 \subsection{How many components}
+\label{sec:components}
 
 The number of components $J$ is the only capacity knob, and it behaves the way capacity
 usually does, with the twist that both directions of error are visible on this benchmark.
@@ -947,16 +905,6 @@ strongly asymmetric. Choosing $J$ too small is catastrophic, since $J = 4$ costs
 eleven on the five-mode target, while choosing it too large costs a few percent. We use
 $J = 12$.
 
-\takeaway{A distribution function has to be non-decreasing, bounded, and to approach $0$ and
-$1$; a multilayer perceptron with a sigmoid output obtains the first two after the fact on a
-grid and cannot obtain the third at all, because a finite sum of bounded terms cannot reach
-the ends of
-$(0,1)$. Writing the network as a convex mixture of logistic distribution functions makes all
-of them hold at every parameter value, gives the density in closed form, and coincides with
-the Parzen estimator when the number of components equals the sample size. Standardising the
-input makes the estimate equivariant, which that design is not: translating the data by $100$
-is enough to make it collapse. Twelve components are used.}
-
 % =====================================================================================
 \section{Training}
 \label{sec:training}
@@ -982,6 +930,7 @@ increasingly speculative elsewhere; asking the network to match it in the empty 
 be fitting an extrapolation.
 
 \subsection{Why a deliberately narrow window}
+\label{sec:teacher-window}
 
 The window used to build the labels is not the one that minimises the error of the Parzen
 estimator. It is narrower, by a factor of two in our implementation.
@@ -1051,14 +1000,6 @@ that averaging over repetitions now measures what it should: the variability acr
 repetitions comes from the samples alone, not from the accident of where the optimiser
 started.
 
-\takeaway{The network is trained at the sample points only, against leave-one-out values of
-the Parzen estimator computed in closed form, using a window deliberately narrower than the
-one that would minimise the estimator's own error, so that limited capacity averages the
-label noise away. The monotonicity penalty, the rectification and the clamp are all removed:
-the first two have nothing left to enforce, and the third was breaking the identity between
-the delivered density and the delivered distribution function. Initialisation consumes no
-randomness, so the fitted model is a deterministic function of the sample.}
-
 % =====================================================================================
 \section{From the distribution function to the density}
 \label{sec:density}
@@ -1077,8 +1018,8 @@ $\pi_j$ is one, so it integrates to one without any normalisation; and it is the
 derivative of the delivered distribution function, not an approximation to it, so the two
 outputs are consistent by algebra rather than by numerical accident.
 
-The final stage of the pipeline is therefore a formula rather than a procedure. There is no
-grid, no differentiation step, and nothing to tune.
+The final stage of the pipeline is therefore a formula rather than a procedure, with no grid
+to choose and no differentiation step to tune.
 
 \subsection{Why finite differences on a grid were a problem}
 
@@ -1168,7 +1109,7 @@ grid nodes is finite and widening spends resolution where there is nothing to se
 
 On the data this method is built for there is no true curve to compare against, so the usual
 quality figures are unavailable. What remains has to be computed from the sample, and the
-question of which such quantities are actually informative has an answer that is not obvious.
+question is which of them are actually informative.
 
 We measured it directly. For each density, sweeping the window over a wide range, we recorded
 the true integrated squared error alongside four candidate indicators, and asked whether each
@@ -1207,10 +1148,9 @@ one. The vertical lines mark the two minima that exist.}
 \label{fig:diagnostics}
 \end{figure}
 
-The last row is the one we want to draw attention to, because it is the indicator a reader
-would most expect to see. Comparing the estimated distribution function against the empirical
-one, and reporting how closely they agree, looks like the natural way to demonstrate that an
-estimate fits its data. It is anticorrelated with the actual error, and choosing a window by
+The last row is the indicator a reader would most expect to see. Comparing the estimated
+distribution function against the empirical one, and reporting how closely they agree, looks
+like the natural way to demonstrate that an estimate fits its data. It is anticorrelated with the actual error, and choosing a window by
 it costs a factor of fourteen on average and ninety-five in the worst case.
 
 The reason is structural. As $h \to 0$ the Parzen estimate converges to the empirical
@@ -1313,12 +1253,11 @@ The procedure is ahead on both averages and, more usefully, on both worst cases.
 margin is concentrated where it should be: on the six-mode target at mixed scales, which is
 the closest thing in this set to the strongly multimodal case, it improves the KS distance by
 a factor of $1.5$ and the density error by $3.5$. On the easier targets the difference is
-within the noise, and on the trimodal the baseline is slightly better on the density, which
-is worth saying plainly.
+within the noise, and on the trimodal the baseline is slightly better on the density.
 
-The mass column is the most informative one, and it repays a second look. The baseline reports
-exactly $1.000000$ on every row, which is not a result: it is the rescaling step doing what it
-was written to do. The procedure reports $0.999990$ and $0.999998$ on two rows, because that
+The mass column carries more than it appears to. The baseline reports exactly $1.000000$ on
+every row, which is the rescaling step doing what it was written to do rather than a property
+of the estimate. The procedure reports $0.999990$ and $0.999998$ on two rows, because that
 is the mass it actually places on a finite domain, and the shortfall of about $10^{-5}$ is the
 tail beyond the interval. That quantity is not absent from the baseline's figures; it is
 redistributed into the interior by the rescaling, where it becomes an error that nothing
@@ -1362,10 +1301,8 @@ Figure~\ref{fig:estimate} is the output of the procedure on a single sample, pro
 same function a user would call. All three modes are recovered, including the narrow one on
 the right, and the tails settle onto $0$ and $1$ rather than approaching them.
 
-Two artefacts are visible, and naming them seems better than glossing over them. The central
-mode is
-split into a double bump that the truth does not have, and the right-hand peak overshoots by
-about a quarter. Both come from the same source: the labels are built with a deliberately
+Two artefacts are visible. The central mode is split into a double bump that the truth does
+not have, and the right-hand peak overshoots by about a quarter. Both come from the same source: the labels are built with a deliberately
 narrow window, so they carry the sampling fluctuation of this particular sample, and twelve
 components are enough to follow part of it. Widening the label window would smooth the bump
 away and flatten the genuine peaks with it. This is the trade discussed in Section~6.2, made
@@ -1418,17 +1355,17 @@ inflate. The logistic kernel has exponential tails, so we expected polynomial on
 poorly reproduced. And a mixture of logistic distribution functions has strictly positive
 density everywhere, so we expected sharp edges to be rounded off.
 
-The first two expectations were wrong, and the reasons are worth recording.
+The first two expectations were wrong.
 
-The domain does not inflate; it tightens. The ratio between the width of the domain and the
-range of the data falls from $2.64$ on the Gaussian reference to $1.27$ on the Cauchy. The
+The domain tightens instead of inflating: the ratio between its width and the range of the
+data falls from $2.64$ on the Gaussian reference to $1.27$ on the Cauchy. The
 sample standard deviation does grow on heavy tails, but the range $\max x - \min x$ grows
 faster, because it is governed by extreme order statistics, so the additive margin of
 $3\shat$ becomes negligible against an already very wide interval. The rule corrects itself
 for a reason we had not anticipated.
 
-Heavy tails are also not harder, they are easier. The $t$ with three degrees of freedom gives
-an integrated squared error of $0.4$ times the Gaussian reference, and the network beats the
+Heavy tails turned out to be easier. The $t$ with three degrees of freedom gives an
+integrated squared error of $0.4$ times the Gaussian reference, and the network beats the
 Parzen estimator on it by a factor of $0.7$. The argument we had made confused two things: the
 tails are indeed reproduced badly, but they contain very little probability, and the
 integrated squared error is dominated by the central region. By that measure the difficulty of
@@ -1473,9 +1410,9 @@ from $0.054$ to $0.027$, and worsens it by $39\%$ on the trimodal Gaussian mixtu
 $31\%$ on the six-mode one. The trade runs in both directions, so there is no free
 improvement to collect, and even at forty-eight components the network still does not catch
 the Parzen estimator on the edges. We keep twelve components, which is calibrated for the
-targets the assignment describes, and state the limitation instead of hiding it: on a
-distribution with compact support the estimate remains a valid distribution function, but its
-density rounds off the edges and the error grows by a factor between three and fourteen.
+targets the assignment describes. On a distribution with compact support the estimate remains
+a valid distribution function, but its density rounds off the edges and the error grows by a
+factor between three and fourteen.
 
 \subsection{What we do not claim}
 
@@ -1487,19 +1424,19 @@ ahead on average over the five main targets, and Table~\ref{tab:resilience} cont
 where it is behind, one of them by a factor of two. What it delivers reliably is the form
 described in Section~9.2, not a uniform gain in accuracy.
 
-We do not claim that cross-validation is the best window selector in all circumstances. On
-smooth unimodal targets the plug-in and Scott's rule beat it. The recommendation is
+Nor is cross-validation the best window selector in all circumstances: on smooth unimodal
+targets the plug-in and Scott's rule beat it. The recommendation is
 conditional on the situation this project is in, which is an unknown and declaredly
 multimodal target.
 
-We do not claim that $3\shat$ is the optimal padding for the domain. It is sufficient: the
-worst case over sixteen densities leaves a mass of $1.1 \times 10^{-4}$ outside, two orders of
+The padding of $3\shat$ for the domain is sufficient rather than optimal. Over sixteen
+densities the worst case leaves a mass of $1.1 \times 10^{-4}$ outside, two orders of
 magnitude below the typical estimation error. On a distribution with much heavier tails than
 those tested it might not be, and we have not tested one.
 
-We do not claim that the rank correlations of Table~\ref{tab:diagnostics} calibrate anything.
-A high rank correlation means an indicator orders windows the way the truth would; it does not
-mean the indicator can be converted into an error estimate. On the professor's data we will be
+The rank correlations of Table~\ref{tab:diagnostics} calibrate nothing. A high rank
+correlation means an indicator orders windows the way the truth would, and says nothing about
+converting it into an estimate of the error. On the professor's data we will be
 able to choose, not to certify.
 
 Finally, the coverage is limited in ways that should be stated: one dimension, sample sizes
@@ -1512,23 +1449,15 @@ architecture.
 \section{Conclusions}
 % =====================================================================================
 
-The procedure that comes out of this work takes a vector of observations, chooses a window by
-least-squares cross-validation, builds leave-one-out Parzen labels at the sample points, fits
-a twelve-component mixture of logistic distribution functions to them, and returns that
-mixture together with its derivative in closed form. It reports the window in the form
-$h_n = h_1/\sqrt n$ that the schedule requires, along with diagnostics that need no knowledge
-of the distribution.
-
-Looking back at the three decisions that shaped it, what stands out is that none was reached
-by improving the obvious answer. In each case the obvious answer had to be given up.
+Looking back at the three decisions that shaped the procedure, what stands out is that none
+was reached by improving the obvious answer. In each case it had to be given up.
 
 The search for a better constant than $1.5\,\shat$ took more effort than any other part of
 this work, and it ended when we measured that no constant exists. That is a different kind of
 outcome from a negative result: it says the question was wrong, not that the answer was hard
-to find. The same shape recurs in the other two. Monotonicity was not obtained by tuning a
-penalty until violations became rare, but by removing the possibility of violation; unit mass
-was not obtained by normalising, but by using a form whose mass is one before anything has
-been fitted.
+to find. The same shape recurs in the other two. Monotonicity came from removing the
+possibility of violation rather than from tuning a penalty until violations grew rare, and
+unit mass from a form whose mass is one before anything has been fitted.
 
 The third decision had a consequence we did not anticipate. Requiring every reported quantity
 to be computable from the sample alone was adopted for a practical reason, since the method is
@@ -1594,7 +1523,7 @@ $F_\theta \to 0$; as $x \to +\infty$ each tends to $1$, so $F_\theta \to \sum_j 
 \emph{Mass.} $\int_{\mathbb{R}} F_\theta' = F_\theta(+\infty) - F_\theta(-\infty) = 1$ by the
 fundamental theorem of calculus. \hfill$\square$
 
-The reparameterisation is what makes this useful rather than merely true: $\pi =
+The reparameterisation is what carries the theorem into practice. $\pi =
 \mathrm{softmax}(u)$ gives $\pi_j > 0$ with $\sum_j \pi_j = 1$ for every $u \in \mathbb{R}^J$,
 and $a = \mathrm{softplus}(\alpha)$ gives $a_j > 0$ for every $\alpha \in \mathbb{R}^J$. The
 hypotheses therefore hold on the whole parameter space, so no parameter value is inadmissible
