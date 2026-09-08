@@ -53,6 +53,26 @@ REGOLE = [
                 r"|worth (saying|recording))\b", re.I)),
     ("S11", "elenco negativo come chiusura",
      re.compile(r"\bno \w+, no \w+,? and (no|nothing)\b", re.I)),
+
+    # ------------------------------------------------------------------ dalla skill
+    # no-ai-slop, applicata a mano una volta e poi messa qui. Quattro di queste cinque
+    # danno zero sul report attuale: servono a non doverle ricercare a mano.
+    ("S12", "verbo gonfiato",
+     re.compile(r"\b(serves as|acts as a|plays an? (key|critical|vital) role"
+                r"|provides a (robust|comprehensive|powerful)|leverages?"
+                r"|facilitates|delivers a)\b", re.I)),
+    ("S13", "attribuzione vaga",
+     re.compile(r"\b(experts agree|studies show|research (shows|suggests)"
+                r"|it is widely|commonly (believed|held)|generally accepted)\b", re.I)),
+    ("S14", "apertura da riepilogo",
+     re.compile(r"(^|\. )(In conclusion|In summary|To summari[sz]e"
+                r"|At the end of the day|The bottom line)\b", re.I)),
+    ("S15", "analisi superficiale (clausola in -ing che afferma senso)",
+     re.compile(r"\b(highlighting|underscoring|demonstrating|showcasing"
+                r"|emphasi[sz]ing|illustrating|reinforcing) (the|its|their|our|a)\b",
+                re.I)),
+    ("S16", "decorazione al posto della struttura",
+     re.compile(r"[\U0001F300-\U0001FAFF\u2600-\u27BF]")),
 ]
 
 # Alcune regole tollerano poche occorrenze e diventano un problema solo in quantita'.

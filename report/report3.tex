@@ -412,8 +412,8 @@ We use two measures, and they answer different questions.
 The \textbf{Kolmogorov--Smirnov distance} $\sup_x |\Fhat(x) - F(x)|$ scores the distribution
 function. It has a natural reference point: the empirical distribution function, which uses
 no smoothing at all, has expected KS distance $\sqrt{\pi/2}\,\ln 2 / \sqrt{n} \approx
-0.8687/\sqrt{n}$. No estimator can reliably do much better than this, so it serves as a
-statistical floor: at $n = 500$ it is $0.0388$.
+0.8687/\sqrt{n}$. No estimator can reliably do much better than this, so it is the
+statistical floor for the measure, and at $n = 500$ it stands at $0.0388$.
 
 The \textbf{integrated squared error} $\int (\fhat - f)^2$ scores the density. This is the
 measure that matters most here, since the density is what the assignment ultimately asks for,
