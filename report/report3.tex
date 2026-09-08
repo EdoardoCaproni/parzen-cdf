@@ -602,12 +602,14 @@ each, $n = 500$. Lower is better and $1$ is unattainable.}
 \end{table}
 
 LSCV wins on every column, and it is the only selector without a catastrophic density
-anywhere in the benchmark. That last property is the one to weigh: the professor's data will
-be one distribution rather than an average over sixteen, so a selector that is excellent on
-average and disastrous on one shape is a poor bet.
+anywhere in the benchmark. That last property is the one to weigh. The benchmark averages
+sixteen densities, but the method will be run once, on one sample from one distribution, so a
+selector that is excellent on average and disastrous on one shape is a poor bet. Every choice
+in this report is scored the same way from here on: on its worst case over the benchmark
+rather than on its mean.
 
-The normal-reference rules deserve a comment, because they perform worse here than their
-reputation suggests. Silverman, Scott and the plug-in are built on the assumption that the
+The normal-reference rules perform worse here than their reputation suggests. Silverman,
+Scott and the plug-in are built on the assumption that the
 target resembles a normal density, and they oversmooth multimodal shapes systematically; on
 the mixture of five separated modes their efficiencies are $21$, $23$ and $19$. They are the
 best selectors on the two smooth unimodal densities of the benchmark, where LSCV sits at
@@ -899,11 +901,9 @@ six modes at mixed scales & $0.0343$ & $0.0183$ & $0.0049$ & $\mathbf{0.0025}$ &
 \label{tab:capacity}
 \end{table}
 
-The choice is made on the worst row rather than on the mean, for the same reason as in
-Chapter~\ref{sec:window}: the target is a single unknown distribution. The risk is also
-strongly asymmetric. Choosing $J$ too small is catastrophic, since $J = 4$ costs a factor of
-eleven on the five-mode target, while choosing it too large costs a few percent. We use
-$J = 12$.
+The choice falls on the worst row. The risk is also strongly asymmetric: choosing $J$ too
+small is catastrophic, since $J = 4$ costs a factor of eleven on the five-mode target, while
+choosing it too large costs a few percent. We use $J = 12$.
 
 % =====================================================================================
 \section{Training}
@@ -1227,6 +1227,13 @@ which reads a vector of numbers from a \texttt{.csv}, \texttt{.txt} or \texttt{.
 writes the two estimated curves tabulated over the domain, the diagnostics as JSON, the fitted
 model, and a figure. Nothing in that path requires knowing where the data came from.
 
+A file written by someone else can be read in more than one way, and the two readings give
+different samples. A column of values like \texttt{1,5} is either one number with a decimal
+comma or two columns; a file of pairs is either observations or an index beside them. Both
+readings produce numbers, and an estimate computed on the wrong one looks entirely ordinary,
+so the reader refuses the ambiguous cases and names the option that resolves them instead of
+choosing on the user's behalf.
+
 % =====================================================================================
 \section{Results}
 \label{sec:results}
@@ -1315,9 +1322,9 @@ suppresses most of the fluctuation the network is there to remove.
 
 The advantage is real but should not be overstated, and it is not uniform. On the resilience
 study of Chapter~\ref{sec:limits} there are targets where the network loses to the estimator,
-and one where it loses by a factor of two. What the neural stage reliably provides is not
-accuracy but form: a function rather than a table, valid by construction, with a density in
-closed form and a cost of evaluation independent of $n$.
+and one where it loses by a factor of two. What the neural stage reliably provides is form
+rather than accuracy. It returns a function instead of a table, valid by construction, with a
+density in closed form and a cost of evaluation independent of $n$.
 
 \subsection{What the figures show}
 
@@ -1686,8 +1693,10 @@ Ch.~10, other families & \texttt{resilience\_non\_gaussian.py},
   \texttt{edges\_capacity.py} \\
 \bottomrule
 \end{tabular}
-\caption{Scripts live in \texttt{temp\_analysis/} unless stated otherwise; each writes its
-results to a text file of the same name.}
+\caption{Scripts live in \texttt{temp\_analysis/} unless stated otherwise, and each writes
+its results to a text file of the same name. Two exceptions: the window study writes
+\texttt{bandwidth\_n500.txt} and \texttt{bandwidth\_n1000.txt}, and the figure script writes
+images into \texttt{results/}.}
 \label{tab:scripts}
 \end{table}
 

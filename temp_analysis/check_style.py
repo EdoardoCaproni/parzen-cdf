@@ -47,7 +47,7 @@ REGOLE = [
                 r"|one might (guess|expect)|there is a prior question"
                 r"|two questions follow|has an answer that is not obvious)\b", re.I)),
     ("S10", "commento su cosa il lettore deve notare",
-     re.compile(r"\b(repays a second look|deserves a (word|comment)"
+     re.compile(r"\b(repays a second look|deserves? a (word|comment)"
                 r"|we want to draw attention|the column that matters"
                 r"|seems better than glossing|instead of hiding it"
                 r"|worth (saying|recording))\b", re.I)),

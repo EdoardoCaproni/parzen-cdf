@@ -19,8 +19,14 @@ N_PAROLE = 7          # lunghezza dei gruppi confrontati
 # Argomenti che ricorrono per natura: se compaiono troppe volte, si sta rifacendo il
 # ragionamento invece di richiamarlo.
 ARGOMENTI = {
+    # Cerca l'ARGOMENTO, non la metrica: "worst case" e' un nome di colonna e ricorre
+    # legittimamente in ogni tabella. Con quel termine dentro, il contatore segnalava sedici
+    # ricorrenze di cui due sole erano la ridedizione del ragionamento, e un allarme che
+    # suona sempre e' un allarme che si impara a ignorare.
     "il caso peggiore conta perche' il bersaglio e' uno solo":
-        r"(single (unknown )?distribution|one distribution, not|worst case)",
+        r"(single unknown distribution|one distribution rather than|one distribution, not"
+        r"|one sample from one distribution|not an average over|for the same reason as in"
+        r"|scored the same way from here on)",
     "sigma gonfiato dalla separazione fra le mode":
         r"(inflated by the (distance|separation)|global spread)",
     "la mistura e' il Parzen con parametri appresi":

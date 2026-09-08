@@ -15,7 +15,7 @@ either implements it or is working material that led to it.
 
 ## Start here
 
-**1. Read the report.** `report/report3.pdf`, 29 pages. One chapter per stage of the pipeline,
+**1. Read the report.** `report/report3.pdf`, about thirty pages. One chapter per stage of the pipeline,
 in the order the data flows through them. Table 1, on page 4, is the delivered configuration at
 a glance; Appendix C gives the evidence behind each choice.
 
